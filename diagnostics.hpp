@@ -224,7 +224,7 @@ public:
                 std::fill(buf + loc.start, buf + loc.finish, '~');
             }
           },
-          [](macro_location &) {}
+          [&](macro_location &) {}
         });
       };
       std::fill_n(buf, line_len, ' ');

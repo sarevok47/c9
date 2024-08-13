@@ -120,9 +120,6 @@ private:
     dump(expr.cast_from, ntab + 2);
     dump(expr.cast_to, ntab + 2);
   }
-  void dump(statement_expression_t &expr, size_t ntab) {
-    expr.expr([&](auto &tree) { dump(tree, ntab); });
-  }
 };
 
 

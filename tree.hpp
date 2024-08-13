@@ -160,11 +160,11 @@ TREE_NARROW_DEF(statement, : base_t {});
 TREE_DEF(compound_statement, : statement_t, std::vector<statement> {});
 
 TREE_NARROW_DEF(decl, : statement_t { });
-TREE_DEF(block_decl, : std::list<decl>, decl_t {  });
+TREE_DEF(block_decl, : std::vector<decl>, decl_t {  });
 
 
-TREE_NARROW_DEF(expression, : base_t {});
-TREE_DEF(statement_expression, : statement_t { expression expr; });
+TREE_NARROW_DEF(expression, : statement_t {});
+TREE_DEF(statement_expression, : expression_t { compound_statement stmts; });
 TREE_DEF(comma_expression, : expression_t { source_range locus; expression lhs, rhs; });
 
 
@@ -322,7 +322,7 @@ TREE_DEF(do_while_statement, : statement_t {
 });
 TREE_DEF(label, : decl_t {
   string name;
-  statement statement;
+  statement stmt;
 });
 TREE_DEF(break_statement, : statement_t {});
 TREE_DEF(continue_statement, : statement_t {});

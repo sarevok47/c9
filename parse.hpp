@@ -128,6 +128,28 @@ struct parser : lex_spirit {
           [&](lex::floating)-> tree::expression {}
         });
       },
+      [&](lex::char_literal cl) -> tree::expression {
+        consume();
+        variant_t<""_s, "U"_s, "u"_s, "u8"_s, "L"_s, "L"_s> prefix;
+
+        auto s = cl.begin();
+        lex::scan_impl(s, prefix, variant_types(prefix), 0_c, ""_s);
+        ++s;
+
+        return tree::int_cst_expression{{ .value = *s, .type = tree::char_type_node}};
+      },
+      [&](decltype("("_s)) -> tree::expression {
+      //  if(*this <= "{"_s)
+        //  return tree::statement_expression{{ .stmts = compound_statement({ .function = })}};
+
+        consume();
+        auto expr = expression();
+        if(expr) {
+          *this <= ")"_req;
+          return expr;
+        }
+        return {};
+      },
       [&](auto &) -> tree::expression {
         location_t loc = peek_token().loc;
         consume();
@@ -483,7 +505,7 @@ struct parser : lex_spirit {
 
   void function_parameters(tree::function_type_t &fun) {
     if(peek_token() != ")"_s) {
-      sm.push_scope();
+      sm.scopes.push_scope();
       do {
         if(*this <= "..."_s) {
           fun.is_variadic = true;
@@ -494,12 +516,12 @@ struct parser : lex_spirit {
           && std::ranges::find_if(fun.params, [&](auto &d) {
             return dctor.name == d.name;
           }) != fun.params.end()) {
-          error(peek_token().loc, {}, "dublicate parameter declaration '{}'", dctor.name);
-        continue;
+            error(peek_token().loc, {}, "dublicate parameter declaration '{}'", dctor.name);
+            continue;
           }
           fun.params.emplace_back(dctor);
       } while(*this <= ","_s);
-      sm.pop_scope();
+      sm.scopes.pop_scope();
     }
     *this <= ")"_req;
   }
@@ -618,8 +640,8 @@ struct parser : lex_spirit {
         }};
         declarate(fun, dector_type);
         bool body = !tail && *this <= ("{"_s, [&] {
-          sema::last_scopes last_scopes;
-          last_scopes.function = &sm.push_scope(sema::fn_scope{});
+          ;
+          sm.scopes.push_scope<sema::fn_scope>();
           for(auto &dector : f.params)
              do_definition(sema::id{dector.name}, &sema::node_t::decl, tree::variable_t{
                .name = dector.name, .type = dector_type
@@ -627,8 +649,8 @@ struct parser : lex_spirit {
 
           tree::compound_statement_t compound;
           while(peek_token() && peek_token() != "}"_s)
-            compound.emplace_back(block_item(last_scopes));
-          sm.pop_scope();
+            compound.emplace_back(block_item());
+          sm.scopes.pop_scope();
           *this <= "}"_req;
           fun->definition = compound;
         });
@@ -645,7 +667,7 @@ struct parser : lex_spirit {
       },
       [&](auto &) {
         tree::variable var {{.name = dector_name.name, .type = dector_type,
-          .is_global = dss.storage_class == storage_class_spec::static_ || sm.scopes.empty()
+          .is_global = sm.scopes.in_global()
         }};
 
         declarate(var, dector_type);
@@ -661,7 +683,6 @@ struct parser : lex_spirit {
         }
         if(!tail )
           *this <= ";"_req;
-
       }
     });
     return decl;
@@ -686,56 +707,69 @@ struct parser : lex_spirit {
 
     return dss.type;
   }
-  tree::if_statement if_statement(sema::last_scopes last_scopes) {
+  tree::if_statement if_statement() {
     tree::expression cond;
     *this <= "("_req >> &parser::expression % cond >> ")"_req;
 
-    tree::statement if_stmt = statement(last_scopes), else_stmt;
+    tree::statement if_stmt = statement(), else_stmt;
     if(*this <= keyword::else_)
-      else_stmt = statement(last_scopes);
+      else_stmt = statement();
 
     return {{.cond = cond, .if_stmt = if_stmt, .else_stmt = else_stmt}};
   }
-  tree::statement block_item(sema::last_scopes last_scopes) {
+  tree::statement block_item() {
     decl_specifier_seq dss{};
     if(declspec(dss))
       return init_decl(dss);
 
-    return statement(last_scopes);
+    return statement();
   }
-  tree::compound_statement compound_statement(sema::last_scopes last_scopes) {
-    last_scopes.compound = &sm.push_scope();
+  tree::compound_statement compound_statement() {
+    sm.scopes.push_scope();
     tree::compound_statement_t compound;
     while(peek_token() != "}"_s)
-      compound.emplace_back(block_item(last_scopes));
-    sm.pop_scope();
+      compound.emplace_back(block_item());
+    sm.scopes.pop_scope();
     *this <= "}"_req;
     return compound;
   }
-  tree::switch_statement switch_statement(sema::last_scopes last_scopes) {
+
+  template<class Scope> tree::statement secondary_block(Scope scope = Scope{}) {
+    sm.scopes.push_scope(mov(scope));
+    tree::statement stmt;
+    if(*this <= "{"_s) {
+      tree::compound_statement_t compound;
+      while(peek_token() != "}"_s)
+        compound.emplace_back(block_item());
+      *this <= "}"_req;
+      stmt = compound;
+    } else
+      stmt = statement();
+    sm.scopes.pop_scope();
+    return stmt;
+  }
+  tree::switch_statement switch_statement() {
     tree::expression cond;
     *this <= "("_s >> &parser::expression % cond >> ")"_req;
 
     tree::switch_statement switch_{{.cond = cond}};
-
-    last_scopes.switch_ = &sm.push_scope(sema::switch_scope{switch_});
-    switch_->stmt = statement(last_scopes);
+    switch_->stmt = secondary_block(sema::switch_scope{switch_});
     return switch_;
   }
-  tree::while_statement while_statement(sema::last_scopes last_scopes) {
+  tree::while_statement while_statement() {
     tree::expression cond;
     *this <= "("_s >> &parser::expression % cond >> ")"_req;
 
-    return {{ .cond = cond, .body = statement(last_scopes) }};
+    return {{ .cond = cond, .body = secondary_block<sema::control_scope>() }};
   }
-  tree::do_while_statement do_while_statement(sema::last_scopes last_scopes) {
-    tree::statement body = statement(last_scopes);
+  tree::do_while_statement do_while_statement() {
+    tree::statement body = secondary_block<sema::control_scope>();
     tree::expression cond;
     *this <= keyword::while_ >> "("_s >> &parser::expression % cond >> ")"_req;
 
     return {{.cond = cond, .body = body}};
   }
-  tree::for_statement for_statement(sema::last_scopes last_scopes) {
+  tree::for_statement for_statement() {
     tree::for_statement_t for_;
 
     *this <= "("_req;
@@ -755,7 +789,7 @@ struct parser : lex_spirit {
       for_.step = expression();
     *this <= ")"_req;
 
-    for_.body = statement(last_scopes);
+    for_.body = secondary_block<sema::control_scope>();
     return for_;
   }
 
@@ -776,15 +810,16 @@ struct parser : lex_spirit {
       return {};
     }
     *this <= ";"_req;
-    return tree::statement_expression{{.expr = expr}};
+    return expr;
   }
 
-  tree::goto_statement goto_statement(sema::last_scopes last_scopes) {
+  tree::goto_statement goto_statement() {
     return visit(peek_token(), overload {
       [&](sema::id id)  {
         consume();
         tree::goto_statement r = tree::goto_statement_t{};
-        last_scopes.function->labels.lookup_label(id.name, r);
+        sm.scopes.ctx_scope_get<sema::fn_scope>()
+          .top().get().labels.lookup_label(id.name, r);
         return r;
       },
       [&](decltype("*"_s))  {
@@ -797,21 +832,23 @@ struct parser : lex_spirit {
       }
     });
   }
-  tree::statement statement(sema::last_scopes last_scopes) {
+  tree::statement statement() {
+    location_t loc = peek_token().loc;
     if(*this <= keyword::if_)
-      return if_statement(last_scopes);
+      return if_statement();
     if(*this <= keyword::switch_)
-      return switch_statement(last_scopes);
+      return switch_statement();
     if(*this <= keyword::while_)
-      return while_statement(last_scopes);
+      return while_statement();
     if(*this <= keyword::do_)
-      return do_while_statement(last_scopes);
+      return do_while_statement();
     if(*this <= keyword::for_)
-      return for_statement(last_scopes);
+      return for_statement();
     if(*this <= keyword::goto_)
-      return goto_statement(last_scopes);
+      return goto_statement();
     if(*this <= keyword::case_) {
-      if(!last_scopes.switch_) {
+      auto &switch_scopes = sm.scopes.ctx_scope_get<sema::switch_scope>();
+      if(switch_scopes.empty()) {
         error(peek_token().loc, {}, "case label without according switch");
         return {};
       }
@@ -819,13 +856,15 @@ struct parser : lex_spirit {
       auto cond = conditional_expression();
       *this <= ":"_req;
 
-      tree::case_statement case_{{ .cond = cond, .stmt = statement(last_scopes)}};
-      last_scopes.switch_->tree->cases.emplace_back(case_);
+      tree::case_statement case_{{ .cond = cond, .stmt = statement()}};
+      switch_scopes.top().get().tree->cases.emplace_back(case_);
       return case_;
     }
     if(*this <= keyword::break_) {
-      if(!last_scopes.control && !last_scopes.switch_) {
-        error(peek_token().loc, {}, "stray break statement");
+      if(!sm.scopes.ctx_scope_get<sema::switch_scope>().empty()
+        && !sm.scopes.ctx_scope_get<sema::control_scope>().empty()
+      ) {
+        error(peek_token().loc, {loc}, "stray break statement");
         return {};
       }
 
@@ -833,7 +872,9 @@ struct parser : lex_spirit {
       return tree::break_statement_t{};
     }
     if(*this <= keyword::continue_) {
-      if(!last_scopes.control || !last_scopes.switch_) {
+      if(!sm.scopes.ctx_scope_get<sema::switch_scope>().empty()
+        && !sm.scopes.ctx_scope_get<sema::control_scope>().empty()
+      ) {
         error(peek_token().loc, {}, "stray break statement");
         return {};
       }
@@ -842,7 +883,7 @@ struct parser : lex_spirit {
       return tree::continue_statement_t{};
     }
     if(*this <= "{"_s)
-      return compound_statement(last_scopes);
+      return compound_statement();
 
 
     if(is<sema::id>(peek_token()) && peek_2nd_token() == ":"_s) {
@@ -852,10 +893,12 @@ struct parser : lex_spirit {
       location_t colon_loc = peek_token().loc;
       consume();
 
-      auto stmt = block_item(last_scopes);
+      auto stmt = block_item();
 
-      tree::label label{{.name = id.name, .statement = stmt}};
-      if(!last_scopes.function->labels.process_label(label)) {
+      tree::label label{{.name = id.name, .stmt = stmt}};
+      if(!sm.scopes.ctx_scope_get<sema::fn_scope>()
+          .top().get().labels.process_label(label)
+      ) {
         error(tok.loc, {colon_loc}, "redeclaration of label named '{}'", id.name);
         return {};
       }

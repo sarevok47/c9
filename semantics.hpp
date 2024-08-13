@@ -3,7 +3,7 @@
 #include "tree.hpp"
 #include "tree-trait.hpp"
 #include <flat-map.hpp>
-
+#include <stack>
 namespace c9 { namespace sema {
 
 
@@ -49,22 +49,36 @@ struct control_scope {};
 struct switch_scope { tree::switch_statement tree; };
 
 
+struct scope  {  variant<compound_scope, fn_scope, control_scope, switch_scope> v;  };
 
-struct scope : flat_map<string, node_t> { variant<compound_scope, fn_scope, control_scope, switch_scope> v; };
-struct last_scopes {
-  compound_scope *compound{};
-  fn_scope       *function{};
-  control_scope  *control {};
-  switch_scope   *switch_ {};
+
+template<class ...T> struct scope_manager {
+  struct scope : flat_map<string, node_t> { variant<T...> v; };
+  std::vector<scope> stack;
+private:
+  std::tuple<std::stack<refw<T>>...> ctx_scope_stacks;
+public:
+  bool in_global() const { return stack.size() == 1; }
+
+  template<class U> auto &ctx_scope_get() { return std::get<std::stack<refw<U>>>(ctx_scope_stacks); }
+  template<class S = compound_scope> void push_scope(S s = {}) {
+    stack.emplace_back(scope{ .v = mov(s)});
+    ctx_scope_get<S>().push((S &) stack.back().v);
+  }
+  void pop_scope() {
+    visit(stack.back().v, [&]<class S>(S &) {
+      ctx_scope_get<S>().pop();
+    });
+    stack.pop_back();
+  }
 };
 
-class semantics {public:
-  std::vector<scope> scopes;
+struct semantics {
+  scope_manager<compound_scope, fn_scope, control_scope, switch_scope> scopes;
 
-public:
-
-  scope &global_scope() { return scopes.front(); }
+  auto &global_scope() { return scopes.stack.front(); }
   id lookup(string name) {
+    auto &scopes = this->scopes.stack;
     size_t scop = scopes.size() - 1;
     for(auto &scope : scopes | rv::reverse) {
       if(auto p = scope.find(name); p != scope.end())
@@ -77,24 +91,13 @@ public:
   }
 
   node_t &get_or_def_node(id id) {
-    if(id.node && id.node->level == scopes.size())
+    if(id.node && id.node->level == scopes.stack.size() - 1)
       return *id.node->node;
-    return scopes.back()[id.name];
+    return scopes.stack.back()[id.name];
   }
 
 
-  auto &push_scope(auto v) requires requires(scope s) { s.v.indexof(v);  } {
-    scopes.push_back({ .v = mov(v) });
-    return (decltype(v) &) scopes.back().v;
-  }
-  compound_scope &push_scope() { return push_scope(compound_scope{}); }
-  void pop_scope() {  scopes.pop_back(); }
-
-  semantics() {
-    scopes.emplace_back();
-  }
-
-
+  semantics() { scopes.push_scope(compound_scope{}); }
 };
 
 
