@@ -143,10 +143,13 @@ struct parser : lex_spirit {
         return tree::int_cst_expression{{ .value = *s, .type = tree::char_type_node}};
       },
       [&](decltype("("_s)) -> tree::expression {
-      //  if(*this <= "{"_s)
-        //  return tree::statement_expression{{ .stmts = compound_statement({ .function = })}};
-
         consume();
+        // statement expression
+        if(*this <= "{"_s) {
+          tree::statement_expression_t expr;
+          *this <= &parser::compound_statement % expr.stmts >> ")"_req;
+          return expr;
+        }
         auto expr = expression();
         if(expr) {
           *this <= ")"_req;
