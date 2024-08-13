@@ -107,8 +107,12 @@ struct parser : lex_spirit {
             return tree::variable(id.node->node->decl);
           if(is<tree::function_t>(id.node->node->decl))
             return tree::function(id.node->node->decl);
+          else {
+            error(loc, {}, "'{}' is not a variable or function", id.name);
+            return {};
+          }
         }
-        error(loc, {}, "primary expected");
+        error(loc, {}, "use undeclared '{}'", id.name);
         return {};
       },
       [&](lex::numeric_constant nc) {
@@ -639,22 +643,23 @@ struct parser : lex_spirit {
           .type =  tree::function_type(dector_type->type)
         }};
         declarate(fun, dector_type);
-        bool body = !tail && *this <= ("{"_s, [&] {
-          ;
+        bool body = !tail && peek_token() == "{"_s;
+
+        if(body) {
           sm.scopes.push_scope<sema::fn_scope>();
           for(auto &dector : f.params)
              do_definition(sema::id{dector.name}, &sema::node_t::decl, tree::variable_t{
                .name = dector.name, .type = dector_type
              });
 
+          consume();
           tree::compound_statement_t compound;
           while(peek_token() && peek_token() != "}"_s)
             compound.emplace_back(block_item());
           sm.scopes.pop_scope();
           *this <= "}"_req;
           fun->definition = compound;
-        });
-
+        }
 
         if(!tail && !body && *this <= ","_s) {
           tree::block_decl_t block{{decl}};

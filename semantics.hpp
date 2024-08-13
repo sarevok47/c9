@@ -54,7 +54,7 @@ struct scope  {  variant<compound_scope, fn_scope, control_scope, switch_scope> 
 
 template<class ...T> struct scope_manager {
   struct scope : flat_map<string, node_t> { variant<T...> v; };
-  std::vector<scope> stack;
+  std::list<scope> stack;
 private:
   std::tuple<std::stack<refw<T>>...> ctx_scope_stacks;
 public:
