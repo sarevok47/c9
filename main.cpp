@@ -114,7 +114,7 @@ tree::default_ =  [] {
 	while(parser.peek_token()) {
 		auto tree = parser.declaration();
 
-//		tree::dumper{stderr}.dump(tree);
+		tree::dumper{stderr}.dump(tree);
 		while(parser.peek_token() == ";"_s)
 			parser.consume();
 	}

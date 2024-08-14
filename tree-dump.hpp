@@ -32,17 +32,16 @@ private:
   void dump(unsigned_long_long_type_t &, size_t ntab) { dump_print(ntab, "unsigned long long");}
 
   void dump(typedef_decl_t &tf, size_t ntab) {
-    dump_print(ntab, "typedef: name: {}", tf.name);
+    dump_print(ntab, "typedef: {}", tf.name);
     dump(tf.type, ntab + 2);
   }
   template<derived_from<structural_decl_t> T> void dump(T &structural, size_t ntab) {
-    dump_print(ntab, "{}: name: {}", __is_same(T, struct_decl_t) ? "struct" : "union", structural.name);
-    dump_print(ntab + 2, "fields:");
-    for(auto &field : structural.fields) dump(field, ntab + 4);
+    dump_print(ntab, "{}: {}", __is_same(T, struct_decl_t) ? "struct" : "union", structural.name);
+    // TODO dump struct
   }
   void dump(function_type_t fun_type, size_t ntab) {
-    dump_print(ntab, "function type: ");
-    dump_print(ntab + 2, "return type: ");
+    dump_print(ntab, "function-type: ");
+    dump_print(ntab + 2, "return-type: ");
     dump(fun_type.return_type, ntab + 4);
 
     if(fun_type.params.size()) {
@@ -68,26 +67,33 @@ private:
     dump_print(ntab, "type: {}", str);
     dump(t.type, ntab + 2);
   }
+  void dump(array_t &arr, size_t ntab) {
+    dump_print(ntab, "array:");
+    dump_print(ntab + 2, "size: ");
+    dump(arr.numof, ntab + 4);
+    dump_print(ntab + 2, "of: ");
+    dump(arr.type, ntab + 4);
+  }
 // declarations
   void dump(variable_t &var, size_t ntab) {
-    dump_print(ntab, "var decl: name: {}", var.name);
+    dump_print(ntab, "var-decl: {}", var.name);
     dump(var.type, ntab);
     dump_print(ntab, "definition:");
     dump(var.definition, ntab + 2);
   }
   void dump(function_t &fun, size_t ntab) {
-    dump_print(ntab, "function: name: {}", fun.name);
+    dump_print(ntab, "function: {}", fun.name);
     dump(fun.type, ntab + 2);
     dump_print(ntab + 2, "definition: ");
     dump(fun.definition, ntab + 4);
   }
 // statement
   void dump(compound_statement_t &compound, size_t ntab) {
-    dump_print(ntab, "compound statement:");
+    dump_print(ntab, "compound-statement:");
     for(auto &stmt : compound) dump(stmt, ntab + 2);
   }
   void dump(if_statement_t &if_, size_t ntab) {
-    dump_print(ntab, "if statement: ");
+    dump_print(ntab, "if-statement: ");
     dump_print(ntab + 2, "cond:");
     dump(if_.cond, ntab + 2);
     dump_print(ntab + 2, "if:");
@@ -103,22 +109,53 @@ private:
   }
   void dump(binary_expression_t &expr, size_t ntab) {
     visit(expr.op, [&](auto s) {
-      dump_print(ntab, "binary expression: op: {}", s.c_str());
+      dump_print(ntab, "binary-expression: op: {}", s.c_str());
     });
     dump(expr.lhs, ntab + 2);
     dump(expr.rhs, ntab + 2);
   }
   void dump(unary_expression_t &expr, size_t ntab) {
     visit(expr.op, [&](auto s) {
-      dump_print(ntab, "unary expression: op: {}", s.c_str());
+      dump_print(ntab, "unary-expression: op: {}", s.c_str());
     });
     dump(expr.expr, ntab + 2);
   }
-
   void dump(cast_expression_t &expr, size_t ntab) {
     dump_print(ntab, "cast-expression:");
     dump(expr.cast_from, ntab + 2);
     dump(expr.cast_to, ntab + 2);
+  }
+  void dump(compound_literal_t &expr, size_t ntab) {
+    dump_print(ntab, "compound-literal:");
+    dump(expr.type, ntab + 2);
+    dump(expr.init, ntab + 2);
+  }
+  void dump(ternary_expression_t &ternary, size_t ntab) {
+    dump_print(ntab, "ternary-expression:");
+    dump_print(ntab + 2, "cond:");
+    dump(ternary.cond, ntab + 4);
+    dump_print(ntab + 2, "lhs");
+    dump(ternary.lhs, ntab + 4);
+    dump_print(ntab + 2, "rhs:");
+    dump(ternary.rhs, ntab + 4);
+  }
+  void dump(initializer_list_t &dlist, size_t ntab) {
+    dump_print(ntab, "initializer-list:");
+    for(auto &init : dlist.list) {
+      for(auto &designator : init.dchain)
+        visit(designator, overload {
+          [&](expression_t &expr) { dump(expr, ntab + 4); },
+          [&](tree::initializer_list_t::array_designator arr) {
+            dump_print(ntab + 2, "array-designator:");
+            dump(arr.index, ntab + 4);
+          },
+          [&](tree::initializer_list_t::struct_designator struct_) {
+            dump_print(ntab + 2, "struct-designator: {}", struct_.field_name);;
+          },
+        });
+      dump_print(ntab + 2, "initializer:");
+      dump(init.init, ntab + 4);
+    }
   }
 };
 

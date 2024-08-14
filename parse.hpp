@@ -49,7 +49,7 @@ struct parser : lex_spirit {
     if(b = (peek_token() == tok))
       consume();
     else
-      error(peek_token().loc - 1, {}, "'{}' expected", lex::stringnize(tok));
+      error(peek_token().loc, {}, "'{}' expected", lex::stringnize(tok));
 
     return b;
   }
@@ -221,6 +221,9 @@ struct parser : lex_spirit {
       consume();
       auto type = type_name();
       *this <= ")"_req;
+      if(tree::initializer_list init; *this <= "{"_s >> &parser::initializer_list % init)
+        return tree::compound_literal{{.type = type, .init = init}};
+
       return tree::cast_expression{{ .cast_from = cast_expression(),  .cast_to = type, }};
     }
     return unary_expression();
@@ -336,17 +339,23 @@ struct parser : lex_spirit {
       return false;
 
     sema::id name;
-
     if(is<sema::id>(peek_token())) {
       name = peek_token();
       start_loc = peek_token().loc;
       consume();
     }
 
-    auto &node = sm.get_or_def_node(name);
-
+    auto &node = sm.get_or_def_node(name);;
+    if(is_struct) {
+      if(!node.struct_decl) node.struct_decl = tree::struct_decl_t{};
+      td = node.struct_decl;
+    }
+    else {
+      if(!node.union_decl) node.union_decl = tree::union_decl_t{};
+      td = node.union_decl;
+    }
     if(*this <= "{"_s) {
-      tree::structural_decl_t s{.name = name.name};
+      tree::record_decl_t s{};
       while(peek_token() && peek_token() != "}"_s) {
         decl_specifier_seq dss;
         declspec(dss);
@@ -375,25 +384,14 @@ struct parser : lex_spirit {
           break;
       }
       *this <= "}"_req;
-
-      if(is_struct) {
-        tree::struct_decl_t d{{s}};
-        if(name.name.size())
-          td = do_definition(name, &sema::node_t::struct_decl, d);
-        else
-          td = d;
-      } else {
-        tree::union_decl_t d{{s}};
-        if(name.name.size())
-          td = do_definition(name, &sema::node_t::union_decl, d);
-        else
-          td = d;
+      if((is_struct && node.struct_decl->def) || (!is_struct && node.union_decl->def))
+        error(start_loc, {}, "redeclaration of {} '{}'", is_struct ? "struct" : "union", name.name);
+      else {
+        if(is_struct) node.struct_decl->def = s;
+        else          node.union_decl->def = s;
       }
-      return true;
     }
 
-    if(is_struct) td = node.struct_decl;
-    else          td = node.union_decl;
     return true;
   }
 
@@ -587,38 +585,42 @@ struct parser : lex_spirit {
       return node.*field = decl;
   }
 
+  tree::initializer_list initializer_list() {
+    tree::initializer_list_t init_list;
 
-  tree::expression designator() {
-    tree::designator_list_t dlist;
-    while(peek_token() != "}"_s) {
-      if(*this <= "["_s) {
-        tree::expression index, init;
-        *this <= &parser::conditional_expression % index
-                  >> "]"_req >> "="_req >> &parser::initializer % init;
-        dlist.list.emplace_back(tree::designator_list_t::array_designator{ index, init});
-      } else if(*this <= "."_s) {
-        auto tok = peek_token();
-        if(!require(type_c<sema::id>))
-          break;
-        tree::expression init;
-        *this <= "="_req >> &parser::initializer % init;
-        dlist.list.emplace_back(tree::designator_list_t::struct_designator{ sema::id(tok).name, init});
-      } else
-        consume();
+    for(; peek_token() && peek_token() != "}"_s; *this <= ","_s) {
+      tree::initializer_list_t::initializer init;
+      bool dchain{};
+      while(*this <= ((("["_s, [&] {
+          init.dchain.emplace_back(
+            tree::initializer_list_t::array_designator{conditional_expression()}
+          );
+        }) >> "]"_req)
+          | ("."_s, [&] {
+            auto tok = peek_token();
+            if(!require(type_c<sema::id>))
+              return false;
+            init.dchain.emplace_back(
+              tree::initializer_list_t::struct_designator{ sema::id(tok).name}
+            );
+            return true;
+          })
+      ))
+        dchain = true;
+      if(dchain) *this <= "="_req;
+      init.init = initializer();
 
-      if(!(*this <= ","_s))
-        break;
+      init_list.list.emplace_back(mov(init));
     }
-
     *this <= "}"_req;
-
-    return dlist;
+    return init_list;
   }
 
   tree::expression initializer() {
     tree::expression r;
-    *this <= ("{"_s >> &parser::designator % r | &parser::assignment_expression % r);
+    *this <= ("{"_s >> &parser::initializer_list % r | &parser::assignment_expression % r);
     return r;
+
   }
 
   tree::decl init_decl(decl_specifier_seq &dss, bool tail = false) {
@@ -802,7 +804,7 @@ struct parser : lex_spirit {
   }
 
 
-  tree::statement statement_expression() {
+  tree::statement expression_statement() {
     tree::expression expr = expression();
     if(!expr) {
       size_t curly_paren_count = 0;
@@ -816,6 +818,9 @@ struct parser : lex_spirit {
         consume();
       }
       return {};
+    }
+    if(peek_token() != ";"_s) {
+      error(peek_token().loc, {}, "2");
     }
     *this <= ";"_req;
     return expr;
@@ -913,7 +918,7 @@ struct parser : lex_spirit {
       return label;
     }
 
-    if(peek_token() != ";"_s) return statement_expression();
+    if(peek_token() != ";"_s) return expression_statement();
     *this <= ";"_s;
     return {};
   }

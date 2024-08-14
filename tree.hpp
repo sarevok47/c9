@@ -194,16 +194,17 @@ TREE_DEF(pointer_access_member, : expression_t { expression expr; string member_
 TREE_DEF(function_call, : expression_t { expression calee; std::vector<expression> args; });
 TREE_DEF(subscript_expression, : expression_t { expression of; expression with; });
 
-TREE_DEF(designator_list, : expression_t {
-  struct array_designator {
-    expression index, init;
-  };
-  struct struct_designator {
-    string field;
+
+TREE_DEF(initializer_list, : expression_t {
+  struct array_designator { expression index; };
+  struct struct_designator { string field_name; };
+
+  struct initializer {
+    std::vector<variant<array_designator, struct_designator>> dchain;
     expression init;
   };
 
-  std::vector<variant<array_designator, struct_designator>> list;
+  std::vector<initializer> list;
 });
 
 
@@ -244,14 +245,14 @@ TREE_DEF(variable, : decl_t, expression_t {
   std::vector<attribute> attrs;
 });
 
-TREE_NARROW_DEF(structural_decl, : type_decl_t {
-  string name;
+TREE_DEF(record_decl, : type_decl_t {
   std::vector<variable> fields;
 
   variable find(string name);
 });
-TREE_DEF(struct_decl, : structural_decl_t {});
-TREE_DEF(union_decl, : structural_decl_t {});
+TREE_NARROW_DEF(structural_decl, : type_decl_t { string name; record_decl def; } );
+TREE_DEF(struct_decl, :  structural_decl_t { });
+TREE_DEF(union_decl,  :  structural_decl_t { });
 
 TREE_DEF(typedef_decl, : type_decl_t {
   string name;
@@ -297,8 +298,10 @@ TREE_DEF(int_cst_expression, : expression_t {
   uint64_t value;
   integer_type type;
 });
-
-
+TREE_DEF(compound_literal, : expression_t {
+  type_name type;
+  initializer_list init;
+});
 TREE_DEF(if_statement, : statement_t {
   expression cond;
   statement if_stmt;
@@ -370,14 +373,14 @@ template<class Q> constexpr auto tree_value<Q>::notypes() { return size_c<find()
 
 
 
-inline variable structural_decl_t::find(string name) {
+inline variable record_decl_t::find(string name) {
   c9_assert(name.size());
   variable r;
   for(auto field : fields) {
     if(field->name.empty())
       field(overload {
         [&](auto &) {},
-        [&](narrow<structural_decl_t> auto &tree) { r = tree.find(name); }
+        [&](narrow<structural_decl_t> auto &tree) { r = tree.def.find(name); }
       });
     else if(field->name == name) r = field;
 
