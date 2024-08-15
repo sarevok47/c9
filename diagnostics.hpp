@@ -80,13 +80,14 @@ enum class color {
 };
 
 
-struct message_type : variant_t<"error"_s, "warning"_s> {
-  using variant_t<"error"_s, "warning"_s>::variant;
+struct message_type : variant_t<"error"_s, "warning"_s, "note"_s> {
+  using variant_t<"error"_s, "warning"_s, "note"_s>::variant;
 
 
   auto color() {
     return visit(*this, overload {
       [](decltype("error"_s))   { return color::fg_red;   },
+      [](decltype("note"_s)) { return color::fg_magenta;  },
       [](decltype("warning"_s)) { return color::fg_magenta; }
     });
   }
@@ -188,7 +189,7 @@ struct diagnostic_engine {
   template<class ...T> void operator()(location_t loc, message_type type, std::format_string<T...> fmt, T&& ...args);
   template<class ...T> void operator()(source_range loc, message_type type, std::format_string<T...> fmt, T&& ...args) {}
 private:
-  void line_render(FILE *out, size_t line_start, size_t line_finish, auto &&locs, auto &&underline) {
+  void line_render(FILE *out, size_t line_start, size_t line_finish, auto &&underline) {
     for(; line_start <= line_finish; ++line_start) {
       auto &line_map = loc_tab.line_maps[line_start];
 
@@ -201,8 +202,7 @@ private:
   }
 
 public:
-  template<class ...T>
-  void diagnostic_impl(FILE *out, rich_location &loc, message_type mtype, std::format_string<T...> fmt, T&& ...args) {
+  void diagnostic_renderer(FILE *out, rich_location loc) {
     auto max_p = std::ranges::max_element(loc.locs),
          min_p = std::ranges::min_element(loc.locs);
 
@@ -214,17 +214,25 @@ public:
     auto underline = [&](size_t cur_line, size_t line_len) {
       char buf[line_len];
       auto caret = [&](location_t loc, bool main = false) {
+        auto f1 = [&](location &loc) {
+          if(loc.map_tag == cur_line) {
+            if(main) {
+              buf[loc.start] = '^';
+              std::fill(buf + loc.start + 1, buf + loc.finish, '~');
+            } else
+              std::fill(buf + loc.start, buf + loc.finish, '~');
+          }
+        };
+        auto f2 = [&](auto &&f2, macro_location ml) -> void {
+          for(location_t loc = ml.invoked.first; loc <= ml.invoked.last; ++loc, main = false)
+            visit(loc_tab[loc], overload {
+              [&](location &loc) { f1(loc); },
+              [&](macro_location &ml) {  f2(f2, ml); }
+            });
+        };
         visit(loc_tab[loc], overload {
-          [&](location &loc) {
-            if(loc.map_tag == cur_line) {
-              if(main) {
-                buf[loc.start] = '^';
-                std::fill(buf + loc.start + 1, buf + loc.finish, '~');
-              } else
-                std::fill(buf + loc.start, buf + loc.finish, '~');
-            }
-          },
-          [&](macro_location &) {}
+          f1,
+          [&](macro_location &ml) { f2(f2, ml); }
         });
       };
       std::fill_n(buf, line_len, ' ');
@@ -233,15 +241,21 @@ public:
       caret(loc.main_loc, true);
       print_with_colon("", out, "{}", sv{buf, line_len});
     };
-    visit(loc_tab.locs[loc.main_loc], overload {
-      [&](location loc) {
-        hdr_print(out, loc_tab.line_maps[loc.map_tag], mtype, fmt, (decltype(args)) args...);
-        line_render( out, loc_tab.get_map_tag(min), loc_tab.get_map_tag(max), loc_tab.locs, underline);
-      },
-      [](macro_location) {
+    line_render(out, loc_tab.get_map_tag(min), loc_tab.get_map_tag(max),  underline);
+  }
+
+
+  template<class ...T>
+  void diagnostic_impl(FILE *out, rich_location loc, message_type mtype, std::format_string<T...> fmt, T&& ...args) {
+    hdr_print(out, loc_tab.line_maps[loc_tab.get_map_tag(loc.main_loc)], mtype, fmt, (decltype(args)) args...);
+    diagnostic_renderer(out, loc);
+
+    visit(loc_tab[loc.main_loc], overload {
+      [](location) {},
+      [&](macro_location ml) {
+        (*this)(ml.in_definition, "note"_s, "in definition of macro");
       }
     });
-
   }
 };
 

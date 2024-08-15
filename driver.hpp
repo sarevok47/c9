@@ -11,11 +11,8 @@ struct option {
   std::vector<fs::path> system_include_paths = {
     "/usr/local/include",
     "/usr/include",
-    "/usr/lib/gcc/x86_64-pc-linux-gnu/13.2.1/include/",
-    "/usr/lib/clang/17/include/",
-    "/usr/include/c++/14.1.1/",
-    //"/usr/include/c++/14.1.1/bits/"
-    "/usr/include/c++/14.1.1/x86_64-pc-linux-gnu/"
+    "/usr/include/x86_64-linux-gnu",
+    "/usr/lib/gcc/x86_64-redhat-linux/14/include"
   };
 };
 

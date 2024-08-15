@@ -263,34 +263,31 @@ TREE_DEF(array, : type_decl_t { type_name type; expression numof; });
 
 TREE_DEF(cast_expression, : expression_t { expression cast_from; type_name cast_to; });
 
-
+TREE_DEF(sizeof_expression, : expression_t {  variant<type_name, expression> arg; });
 
 TREE_NARROW_DEF(builtin_type, : type_decl_t {});
-
+template<narrow<builtin_type_t> T> static inline tree_value<T> type_node;
+#define BUILTIN_TYPE_DEF(name, a...) \
+  TREE_DEF(name, a); \
+  static auto &name##_node =   type_node<name##_t>;
+BUILTIN_TYPE_DEF(void_type, : builtin_type_t {});
 TREE_NARROW_DEF(integer_type, : builtin_type_t { size_t size; });
 
 
-TREE_NARROW_DEF(unsigned_integral_type, : integer_type_t { constexpr static bool unsigned_tag{}; });
-TREE_NARROW_DEF(signed_integral_type,   : integer_type_t { constexpr static bool signed_tag{}; });
+TREE_NARROW_DEF(unsigned_integral_type, : integer_type_t { void unsigned_tag(); });
+TREE_NARROW_DEF(signed_integral_type,   : integer_type_t { void signed_tag(); });
 
-
-
-template<narrow<integer_type_t> T> static inline tree_value<T> type_node;
-#define INTEGRAL_BUILTIN_TYPE(name, a...) \
-  TREE_DEF(name, a); \
-  static auto &name##_node =   type_node<name##_t>;
-
-INTEGRAL_BUILTIN_TYPE(char_type, : unsigned_integral_type_t {});
-INTEGRAL_BUILTIN_TYPE(unsigned_char_type, : unsigned_integral_type_t {});
-INTEGRAL_BUILTIN_TYPE(signed_char_type, : signed_integral_type_t {});
-INTEGRAL_BUILTIN_TYPE(short_type, : signed_integral_type_t {});
-INTEGRAL_BUILTIN_TYPE(unsigned_short_type, : unsigned_integral_type_t {});
-INTEGRAL_BUILTIN_TYPE(int_type, : signed_integral_type_t {});
-INTEGRAL_BUILTIN_TYPE(unsigned_int_type, : unsigned_integral_type_t {});
-INTEGRAL_BUILTIN_TYPE(long_type, : signed_integral_type_t {});
-INTEGRAL_BUILTIN_TYPE(unsigned_long_type, : unsigned_integral_type_t {});
-INTEGRAL_BUILTIN_TYPE(long_long_type, : signed_integral_type_t {});
-INTEGRAL_BUILTIN_TYPE(unsigned_long_long_type, : unsigned_integral_type_t {});
+BUILTIN_TYPE_DEF(char_type, : unsigned_integral_type_t {});
+BUILTIN_TYPE_DEF(unsigned_char_type, : unsigned_integral_type_t {});
+BUILTIN_TYPE_DEF(signed_char_type, : signed_integral_type_t {});
+BUILTIN_TYPE_DEF(short_type, : signed_integral_type_t {});
+BUILTIN_TYPE_DEF(unsigned_short_type, : unsigned_integral_type_t {});
+BUILTIN_TYPE_DEF(int_type, : signed_integral_type_t {});
+BUILTIN_TYPE_DEF(unsigned_int_type, : unsigned_integral_type_t {});
+BUILTIN_TYPE_DEF(long_type, : signed_integral_type_t {});
+BUILTIN_TYPE_DEF(unsigned_long_type, : unsigned_integral_type_t {});
+BUILTIN_TYPE_DEF(long_long_type, : signed_integral_type_t {});
+BUILTIN_TYPE_DEF(unsigned_long_long_type, : unsigned_integral_type_t {});
 
 static integer_type ptrdiff_type_node;
 
@@ -371,8 +368,6 @@ template<class T_t> template<class T> bool tree_value<T_t>::is_narrow() {
 
 template<class Q> constexpr auto tree_value<Q>::notypes() { return size_c<find()>;   }
 
-
-
 inline variable record_decl_t::find(string name) {
   c9_assert(name.size());
   variable r;
@@ -392,4 +387,4 @@ inline variable record_decl_t::find(string name) {
 
 
 
-#undef INTEGRAL_BUILTIN_TYPE
+#undef BUILTIN_TYPE_DEF

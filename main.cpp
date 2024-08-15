@@ -44,18 +44,18 @@ using namespace c9;
 
 namespace c9 { namespace tree {
 #ifdef EXPLICIT_TREE_SPEC
-#define INTEGRAL_BUILTIN_TYPE(name, ...)  template<> name type_node<name##_t> = name##_t{};
-INTEGRAL_BUILTIN_TYPE(char_type, : unsigned_integral_type_t {});
-INTEGRAL_BUILTIN_TYPE(unsigned_char_type, : signed_integral_type_t {});
-INTEGRAL_BUILTIN_TYPE(signed_char_type, : signed_integral_type_t {});
-INTEGRAL_BUILTIN_TYPE(short_type, : signed_integral_type_t {});
-INTEGRAL_BUILTIN_TYPE(unsigned_short_type, : unsigned_integral_type_t {});
-INTEGRAL_BUILTIN_TYPE(int_type, : signed_integral_type_t {});
-INTEGRAL_BUILTIN_TYPE(unsigned_int_type, : unsigned_integral_type_t {});
-INTEGRAL_BUILTIN_TYPE(long_type, : signed_integral_type_t {});
-INTEGRAL_BUILTIN_TYPE(unsigned_long_type, : unsigned_integral_type_t {});
-INTEGRAL_BUILTIN_TYPE(long_long_type, : signed_integral_type_t {});
-INTEGRAL_BUILTIN_TYPE(unsigned_long_long_type, : unsigned_integral_type_t {});
+#define BUILTIN_TYPE_DEF(name, ...)  template<> name type_node<name##_t> = name##_t{};
+BUILTIN_TYPE_DEF(char_type, : unsigned_integral_type_t {});
+BUILTIN_TYPE_DEF(unsigned_char_type, : signed_integral_type_t {});
+BUILTIN_TYPE_DEF(signed_char_type, : signed_integral_type_t {});
+BUILTIN_TYPE_DEF(short_type, : signed_integral_type_t {});
+BUILTIN_TYPE_DEF(unsigned_short_type, : unsigned_integral_type_t {});
+BUILTIN_TYPE_DEF(int_type, : signed_integral_type_t {});
+BUILTIN_TYPE_DEF(unsigned_int_type, : unsigned_integral_type_t {});
+BUILTIN_TYPE_DEF(long_type, : signed_integral_type_t {});
+BUILTIN_TYPE_DEF(unsigned_long_type, : unsigned_integral_type_t {});
+BUILTIN_TYPE_DEF(long_long_type, : signed_integral_type_t {});
+BUILTIN_TYPE_DEF(unsigned_long_long_type, : unsigned_integral_type_t {});
 #endif
   tree_arena a{};
 }}
@@ -66,25 +66,25 @@ int main(int argc, char **argv) {
   signal(SIGSEGV, handler);   // install our handler
   driver d;
 
-  auto &ff = d.files["../../tmp.cpp"];
 
+  auto &ff = d.files["../../tmp.cpp"];
 
 
 	{
 		using namespace  tree;
-#define INTEGRAL_BUILTIN_TYPE(name, ...) type_node<name##_t> = name##_t{};
-
-  	INTEGRAL_BUILTIN_TYPE(char_type, : unsigned_integral_type_t {});
-  	INTEGRAL_BUILTIN_TYPE(unsigned_char_type, : signed_integral_type_t {});
-  	INTEGRAL_BUILTIN_TYPE(signed_char_type, : signed_integral_type_t {});
-  	INTEGRAL_BUILTIN_TYPE(short_type, : signed_integral_type_t {});
-  	INTEGRAL_BUILTIN_TYPE(unsigned_short_type, : unsigned_integral_type_t {});
-  	INTEGRAL_BUILTIN_TYPE(int_type, : signed_integral_type_t {});
-  	INTEGRAL_BUILTIN_TYPE(unsigned_int_type, : unsigned_integral_type_t {});
-  	INTEGRAL_BUILTIN_TYPE(long_type, : signed_integral_type_t {});
-  	INTEGRAL_BUILTIN_TYPE(unsigned_long_type, : unsigned_integral_type_t {});
-  	INTEGRAL_BUILTIN_TYPE(long_long_type, : signed_integral_type_t {});
-  	INTEGRAL_BUILTIN_TYPE(unsigned_long_long_type, : unsigned_integral_type_t {});
+#define BUILTIN_TYPE_DEF(name, ...) type_node<name##_t> = name##_t{};
+BUILTIN_TYPE_DEF(void_type);
+  	BUILTIN_TYPE_DEF(char_type, : unsigned_integral_type_t {});
+  	BUILTIN_TYPE_DEF(unsigned_char_type, : signed_integral_type_t {});
+  	BUILTIN_TYPE_DEF(signed_char_type, : signed_integral_type_t {});
+  	BUILTIN_TYPE_DEF(short_type, : signed_integral_type_t {});
+  	BUILTIN_TYPE_DEF(unsigned_short_type, : unsigned_integral_type_t {});
+  	BUILTIN_TYPE_DEF(int_type, : signed_integral_type_t {});
+  	BUILTIN_TYPE_DEF(unsigned_int_type, : unsigned_integral_type_t {});
+  	BUILTIN_TYPE_DEF(long_type, : signed_integral_type_t {});
+  	BUILTIN_TYPE_DEF(unsigned_long_type, : unsigned_integral_type_t {});
+  	BUILTIN_TYPE_DEF(long_long_type, : signed_integral_type_t {});
+  	BUILTIN_TYPE_DEF(unsigned_long_long_type, : unsigned_integral_type_t {});
 
 
 
@@ -110,13 +110,14 @@ tree::default_ =  [] {
 
 	parse::parser parser{d, pp};
 
-	std::list<tree::statement> stmt;
-	while(parser.peek_token()) {
-		auto tree = parser.declaration();
-
-		tree::dumper{stderr}.dump(tree);
-		while(parser.peek_token() == ";"_s)
+	for(; ;) {
+    while(parser.peek_token() == ";"_s)
 			parser.consume();
+    if(parser.peek_token()) {
+		  auto tree = parser.declaration();
+    } else break;
+		//tree::dumper{stderr}.dump(tree);
+
 	}
 
 

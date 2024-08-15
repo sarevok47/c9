@@ -14,10 +14,7 @@ public:
   auto begin() const { return storage.begin(); }
   auto end()   const { return storage.end();   }
   auto find(const Key &key)   {
-  //  return std::ranges::find(storage, key, &pair_value::key);
-    for(auto p = storage.begin(); p != this->end(); ++p)
-      if(p->key == key) return p;
-      return storage.end();
+    return std::ranges::find_if(storage, [&](auto &kv) { return kv.key == key; });
   }
 
   void push_back(key_value kv) { storage.push_back(mov(kv)); }

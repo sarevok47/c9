@@ -37,10 +37,8 @@ sv to_sv(storage_class_spec scs) {
 
 
 
-struct parser : lex_spirit {
+struct parser : sema::semantics, lex_spirit {
   driver &d;
-
-  sema::semantics sm;
 
   parser(driver &d, auto&& ...x) : d{d}, lex_spirit{*this, (decltype(x)) x...} {}
 
@@ -77,6 +75,7 @@ struct parser : lex_spirit {
       [](sema::id &id) { return id.node && is<tree::typedef_decl_t>(id.node->node->decl); },
       [](keyword kw) {
         switch(kw) {
+          case keyword::void_:
           case keyword::int_:
           case keyword::char_:
           case keyword::long_:
@@ -157,10 +156,25 @@ struct parser : lex_spirit {
         }
         return {};
       },
-      [&](auto &) -> tree::expression {
+      [&]<class T>(T &v) -> tree::expression {
         location_t loc = peek_token().loc;
         consume();
-        error(loc, {}, "primary expected"); return {};
+        if constexpr(__is_same(T, keyword))
+          switch(v) {
+            case keyword::sizeof_: {
+              tree::sizeof_expression_t s;
+              if(peek_token() == "("_s && starts_typename(peek_2nd_token())) {
+                consume();
+                s.arg = type_name();
+                *this <= ")"_req;
+              } else
+                s.arg = unary_expression();
+              return s;
+            }
+            default: break;
+          }
+        error(loc, {}, "primary expected");
+        return {};
       }
     });
   }
@@ -312,8 +326,43 @@ struct parser : lex_spirit {
     struct {
       size_t times{};
       location_t loc;
+      operator bool() { return times; }
     } unsigned_, signed_, long_, short_;
   };
+
+  void process_type_spec(type_spec_state tss, tree::type_decl &type) {
+    if(tss.long_ && tss.short_)
+      error(tss.long_.loc, {tss.short_.loc}, "long and short specifiers cannot be used both");
+    else if(tss.short_)
+      type(overload {
+        [&](tree::char_type_t &) {},
+        [&](tree::int_type_t &)   { type = tree::short_type_node;  },
+        [&](tree::empty_node_t &)   { type = tree::short_type_node;  },
+        [&](auto &) { error(tss.short_.loc, {}, "short specifier must be used with integer type");  }
+      });
+    else
+      switch(tss.long_.times) {
+        case 1: type = tree::long_type_node; break;
+        case 2: type = tree::long_long_type_node; break;
+      }
+
+    if(tss.unsigned_ && tss.signed_)
+      error(tss.signed_.loc, {tss.unsigned_.loc}, "unsigned and signed specifiers cannot be used both");
+    else if(tss.unsigned_)
+      type(overload {
+        [&](tree::empty_node_t &) { type = tree::unsigned_int_type_node; },
+        [&](tree::char_type_t &) {},
+        [&](narrow<tree::signed_integral_type_t> auto &tree) { type = make_unsigned(tree); },
+        [&](auto &) { error(tss.unsigned_.loc, {}, "unsigned must be used with integer type");  }
+      });
+    else if(tss.signed_)
+      type(overload {
+        [&](tree::empty_node_t &) { type = tree::int_type_node; },
+        [&](tree::char_type_t &) { type = tree::signed_char_type_node; },
+        [&](narrow<tree::signed_integral_type_t> auto &tree) {},
+        [&](auto &) { error(tss.signed_.loc, {}, "signed must be used with integer type");  }
+      });
+  }
 
 
   bool type_qualifer(tree::type_name &type) {
@@ -345,7 +394,7 @@ struct parser : lex_spirit {
       consume();
     }
 
-    auto &node = sm.get_or_def_node(name);;
+    auto &node = get_or_def_node(name);;
     if(is_struct) {
       if(!node.struct_decl) node.struct_decl = tree::struct_decl_t{};
       td = node.struct_decl;
@@ -384,7 +433,9 @@ struct parser : lex_spirit {
           break;
       }
       *this <= "}"_req;
-      if((is_struct && node.struct_decl->def) || (!is_struct && node.union_decl->def))
+      if(name.name.size()
+        && ((is_struct && node.struct_decl->def) || (!is_struct && node.union_decl->def))
+      )
         error(start_loc, {}, "redeclaration of {} '{}'", is_struct ? "struct" : "union", name.name);
       else {
         if(is_struct) node.struct_decl->def = s;
@@ -408,20 +459,19 @@ struct parser : lex_spirit {
   }
 
   bool type_specifier(tree::type_name &type, type_spec_state &tcs) {
+    location_t loc = peek_token().loc;
     return *this <= (
-      (keyword::unsigned_  , [&] { ++tcs.unsigned_.times; tcs.unsigned_.loc = peek_token().loc; })
-        | (keyword::signed_, [&] { ++tcs.signed_.times; tcs.signed_.loc = peek_token().loc;     })
-        | (keyword::long_  , [&] { ++tcs.long_.times; tcs.long_.loc = peek_token().loc;         })
-        | (keyword::short_ , [&] { ++tcs.short_.times; tcs.short_.loc = peek_token().loc;       })
-        | (keyword::char_  , [&] { type->type = tree::char_type_node;                       })
-        | (keyword::int_   , [&] { type->type = tree::int_type_node;                        })
+      (keyword::unsigned_  , [&] { ++tcs.unsigned_.times; tcs.unsigned_.loc = loc; })
+        | (keyword::signed_, [&] { ++tcs.signed_.times; tcs.signed_.loc     = loc; })
+        | (keyword::long_  , [&] { ++tcs.long_.times; tcs.long_.loc         = loc; })
+        | (keyword::short_ , [&] { ++tcs.short_.times; tcs.short_.loc       = loc; })
+        | (keyword::char_  , [&] { type->type = tree::char_type_node;              })
+        | (keyword::int_   , [&] { type->type = tree::int_type_node;               })
+        | (keyword::void_  , [&] { type->type = tree::void_type_node;              })
         | &parser::struct_or_union_specifier / type->type
         | &parser::typedef_spec / type);
    }
 
-  void process_type_spec(type_spec_state &tss, tree::type_name type) {
-
-  }
 
   bool attribute_list(std::vector<tree::attribute> &attr_list) {
     bool r{};
@@ -481,7 +531,7 @@ struct parser : lex_spirit {
       }())
        r = true;
 
-    process_type_spec(tss, dss.type);
+    process_type_spec(tss, dss.type->type);
     return r;
   }
 
@@ -510,7 +560,7 @@ struct parser : lex_spirit {
 
   void function_parameters(tree::function_type_t &fun) {
     if(peek_token() != ")"_s) {
-      sm.scopes.push_scope();
+      scopes.push_scope();
       do {
         if(*this <= "..."_s) {
           fun.is_variadic = true;
@@ -526,7 +576,7 @@ struct parser : lex_spirit {
           }
           fun.params.emplace_back(dctor);
       } while(*this <= ","_s);
-      sm.scopes.pop_scope();
+      scopes.pop_scope();
     }
     *this <= ")"_req;
   }
@@ -577,7 +627,7 @@ struct parser : lex_spirit {
 
 
   template<class D> D do_definition(sema::id id, D sema::node_t::*field, auto decl)  {
-    auto &node = sm.get_or_def_node(id);
+    auto &node = get_or_def_node(id);
     if(node.*field) {
        error(peek_token().loc, {}, "redifinition of '{}'", id.name);
       return {};
@@ -634,8 +684,8 @@ struct parser : lex_spirit {
          decl = tree::typedef_decl{{ .name = dector_name.name, .type = type}};
       else
          decl = tree;
-
-      decl = do_definition(dector_name, &sema::node_t::decl, decl);
+      if(dector_name.name.size())
+        decl = do_definition(dector_name, &sema::node_t::decl, decl);
     };
 
     dector_type->type(overload {
@@ -651,7 +701,7 @@ struct parser : lex_spirit {
         bool body = !tail && peek_token() == "{"_s;
 
         if(body) {
-          sm.scopes.push_scope<sema::fn_scope>();
+          scopes.push_scope<sema::fn_scope>();
           for(auto &dector : f.params)
              do_definition(sema::id{dector.name}, &sema::node_t::decl, tree::variable_t{
                .name = dector.name, .type = dector_type
@@ -661,7 +711,7 @@ struct parser : lex_spirit {
           tree::compound_statement_t compound;
           while(peek_token() && peek_token() != "}"_s)
             compound.emplace_back(block_item());
-          sm.scopes.pop_scope();
+          scopes.pop_scope();
           *this <= "}"_req;
           fun->definition = compound;
         }
@@ -677,7 +727,7 @@ struct parser : lex_spirit {
       },
       [&](auto &) {
         tree::variable var {{.name = dector_name.name, .type = dector_type,
-          .is_global = sm.scopes.in_global()
+          .is_global = scopes.in_global()
         }};
 
         declarate(var, dector_type);
@@ -735,17 +785,17 @@ struct parser : lex_spirit {
     return statement();
   }
   tree::compound_statement compound_statement() {
-    sm.scopes.push_scope();
+    scopes.push_scope();
     tree::compound_statement_t compound;
     while(peek_token() != "}"_s)
       compound.emplace_back(block_item());
-    sm.scopes.pop_scope();
+    scopes.pop_scope();
     *this <= "}"_req;
     return compound;
   }
 
   template<class Scope> tree::statement secondary_block(Scope scope = Scope{}) {
-    sm.scopes.push_scope(mov(scope));
+    scopes.push_scope(mov(scope));
     tree::statement stmt;
     if(*this <= "{"_s) {
       tree::compound_statement_t compound;
@@ -755,7 +805,7 @@ struct parser : lex_spirit {
       stmt = compound;
     } else
       stmt = statement();
-    sm.scopes.pop_scope();
+    scopes.pop_scope();
     return stmt;
   }
   tree::switch_statement switch_statement() {
@@ -831,7 +881,7 @@ struct parser : lex_spirit {
       [&](sema::id id)  {
         consume();
         tree::goto_statement r = tree::goto_statement_t{};
-        sm.scopes.ctx_scope_get<sema::fn_scope>()
+        scopes.ctx_scope_get<sema::fn_scope>()
           .top().get().labels.lookup_label(id.name, r);
         return r;
       },
@@ -860,7 +910,7 @@ struct parser : lex_spirit {
     if(*this <= keyword::goto_)
       return goto_statement();
     if(*this <= keyword::case_) {
-      auto &switch_scopes = sm.scopes.ctx_scope_get<sema::switch_scope>();
+      auto &switch_scopes = scopes.ctx_scope_get<sema::switch_scope>();
       if(switch_scopes.empty()) {
         error(peek_token().loc, {}, "case label without according switch");
         return {};
@@ -874,8 +924,8 @@ struct parser : lex_spirit {
       return case_;
     }
     if(*this <= keyword::break_) {
-      if(!sm.scopes.ctx_scope_get<sema::switch_scope>().empty()
-        && !sm.scopes.ctx_scope_get<sema::control_scope>().empty()
+      if(!scopes.ctx_scope_get<sema::switch_scope>().empty()
+        && !scopes.ctx_scope_get<sema::control_scope>().empty()
       ) {
         error(peek_token().loc, {loc}, "stray break statement");
         return {};
@@ -885,8 +935,8 @@ struct parser : lex_spirit {
       return tree::break_statement_t{};
     }
     if(*this <= keyword::continue_) {
-      if(!sm.scopes.ctx_scope_get<sema::switch_scope>().empty()
-        && !sm.scopes.ctx_scope_get<sema::control_scope>().empty()
+      if(!scopes.ctx_scope_get<sema::switch_scope>().empty()
+        && !scopes.ctx_scope_get<sema::control_scope>().empty()
       ) {
         error(peek_token().loc, {}, "stray break statement");
         return {};
@@ -909,7 +959,7 @@ struct parser : lex_spirit {
       auto stmt = block_item();
 
       tree::label label{{.name = id.name, .stmt = stmt}};
-      if(!sm.scopes.ctx_scope_get<sema::fn_scope>()
+      if(!scopes.ctx_scope_get<sema::fn_scope>()
           .top().get().labels.process_label(label)
       ) {
         error(tok.loc, {colon_loc}, "redeclaration of label named '{}'", id.name);
@@ -931,7 +981,7 @@ struct parser : lex_spirit {
   }
 };
 
-sema::id lex_spirit::lookup(lex::identifier s) { return parse.sm.lookup(s); }
+sema::id lex_spirit::lookup(lex::identifier s) { return parse.name_lookup(s); }
 
 template<class T>
 bool lex_spirit::operator<=(require_value<T> v) {

@@ -53,7 +53,7 @@ struct scope  {  variant<compound_scope, fn_scope, control_scope, switch_scope> 
 
 
 template<class ...T> struct scope_manager {
-  struct scope : flat_map<string, node_t> { variant<T...> v; };
+  struct scope : /*flat_map*/std::unordered_map<string, node_t, string::hash> { variant<T...> v; };
   std::list<scope> stack;
 private:
   std::tuple<std::stack<refw<T>>...> ctx_scope_stacks;
@@ -77,12 +77,12 @@ struct semantics {
   scope_manager<compound_scope, fn_scope, control_scope, switch_scope> scopes;
 
   auto &global_scope() { return scopes.stack.front(); }
-  id lookup(string name) {
+  id name_lookup(string name) {
     auto &scopes = this->scopes.stack;
     size_t scop = scopes.size() - 1;
     for(auto &scope : scopes | rv::reverse) {
       if(auto p = scope.find(name); p != scope.end())
-        return { .name = name, .node = node_ref{ scop, &p->value } };
+        return { .name = name, .node = node_ref{ scop, &p->/*value*/second } };
 
       --scop;
     }
@@ -97,7 +97,7 @@ struct semantics {
   }
 
 
-  semantics() { scopes.push_scope(compound_scope{}); }
+  semantics() { scopes.push_scope(compound_scope{});  }
 };
 
 

@@ -3,9 +3,9 @@
 #include "tree.hpp"
 
 namespace c9 { namespace tree {
-  type_name make_pointer(auto type) {
-    return type_name{{.type = pointer_t{.type = type}}};
-  };
+type_name make_pointer(auto type) {
+  return type_name{{.type = pointer_t{.type = type}}};
+};
 namespace make_unsigend_detail {
 auto operator>(auto signed_, auto unsigned_) { return [=](decltype(signed_)::value_type &) { return unsigned_; }; }
 }

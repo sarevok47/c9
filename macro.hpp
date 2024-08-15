@@ -45,7 +45,6 @@ lex::token preprocessor::get_token_from_stream_1(auto &streams, auto& ...s) {
 lex::token preprocessor::get_token_from_stream(auto &streams, auto& ...s) {
   lex::token res = get_token_from_stream_1(streams, s...);
   if(res.paste_left) {
-#if 1
     std::string buf;
 
     buf += res.spelling();
@@ -61,11 +60,6 @@ lex::token preprocessor::get_token_from_stream(auto &streams, auto& ...s) {
 
       res.paste_left = rhs.paste_left;
     }
-#else
-
-
-
-#endif
   }
 
   if(is<lex::identifier>(res)) ref_tuple(streams, s...)(for_each([&](auto& streams) {
@@ -517,7 +511,6 @@ void preprocessor::init_builtin_macro() {
             #define unix 1
 
             #define __CHAR_BIT__ 8
-
 
             #define __has_feature(x) 0  // Compatibility with non-clang compilers.
             #define __has_attribute(x) 1

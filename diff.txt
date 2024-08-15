@@ -1,0 +1,766 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 7d1a7f6..369a9c1 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -10,7 +10,7 @@ include_directories(c9
+   PUBLIC
+     ${CMAKE_CURRENT_LIST_DIR}
+   )
+-add_compile_options(-std=gnu++23 -O1 -O2 -funsigned-char -march=native -Wall -Wextra)
++add_compile_options(-std=gnu++23 -g -O1 -O2 -funsigned-char -march=native -Wall -Wextra)
+ 
+ add_executable(c9 main.cpp token.cpp)
+ 
+diff --git a/diagnostics.hpp b/diagnostics.hpp
+index 28aa45a..980dd8c 100644
+--- a/diagnostics.hpp
++++ b/diagnostics.hpp
+@@ -80,13 +80,14 @@ enum class color {
+ };
+ 
+ 
+-struct message_type : variant_t<"error"_s, "warning"_s> {
+-  using variant_t<"error"_s, "warning"_s>::variant;
++struct message_type : variant_t<"error"_s, "warning"_s, "note"_s> {
++  using variant_t<"error"_s, "warning"_s, "note"_s>::variant;
+ 
+ 
+   auto color() {
+     return visit(*this, overload {
+       [](decltype("error"_s))   { return color::fg_red;   },
++      [](decltype("note"_s)) { return color::fg_magenta;  },
+       [](decltype("warning"_s)) { return color::fg_magenta; }
+     });
+   }
+@@ -188,7 +189,7 @@ struct diagnostic_engine {
+   template<class ...T> void operator()(location_t loc, message_type type, std::format_string<T...> fmt, T&& ...args);
+   template<class ...T> void operator()(source_range loc, message_type type, std::format_string<T...> fmt, T&& ...args) {}
+ private:
+-  void line_render(FILE *out, size_t line_start, size_t line_finish, auto &&locs, auto &&underline) {
++  void line_render(FILE *out, size_t line_start, size_t line_finish, auto &&underline) {
+     for(; line_start <= line_finish; ++line_start) {
+       auto &line_map = loc_tab.line_maps[line_start];
+ 
+@@ -201,8 +202,7 @@ private:
+   }
+ 
+ public:
+-  template<class ...T>
+-  void diagnostic_impl(FILE *out, rich_location &loc, message_type mtype, std::format_string<T...> fmt, T&& ...args) {
++  void diagnostic_renderer(FILE *out, rich_location loc) {
+     auto max_p = std::ranges::max_element(loc.locs),
+          min_p = std::ranges::min_element(loc.locs);
+ 
+@@ -214,17 +214,25 @@ public:
+     auto underline = [&](size_t cur_line, size_t line_len) {
+       char buf[line_len];
+       auto caret = [&](location_t loc, bool main = false) {
++        auto f1 = [&](location &loc) {
++          if(loc.map_tag == cur_line) {
++            if(main) {
++              buf[loc.start] = '^';
++              std::fill(buf + loc.start + 1, buf + loc.finish, '~');
++            } else
++              std::fill(buf + loc.start, buf + loc.finish, '~');
++          }
++        };
++        auto f2 = [&](auto &&f2, macro_location ml) -> void {
++          for(location_t loc = ml.invoked.first; loc <= ml.invoked.last; ++loc, main = false)
++            visit(loc_tab[loc], overload {
++              [&](location &loc) { f1(loc); },
++              [&](macro_location &ml) {  f2(f2, ml); }
++            });
++        };
+         visit(loc_tab[loc], overload {
+-          [&](location &loc) {
+-            if(loc.map_tag == cur_line) {
+-              if(main) {
+-                buf[loc.start] = '^';
+-                std::fill(buf + loc.start + 1, buf + loc.finish, '~');
+-              } else
+-                std::fill(buf + loc.start, buf + loc.finish, '~');
+-            }
+-          },
+-          [&](macro_location &) {}
++          f1,
++          [&](macro_location &ml) { f2(f2, ml); }
+         });
+       };
+       std::fill_n(buf, line_len, ' ');
+@@ -233,15 +241,21 @@ public:
+       caret(loc.main_loc, true);
+       print_with_colon("", out, "{}", sv{buf, line_len});
+     };
+-    visit(loc_tab.locs[loc.main_loc], overload {
+-      [&](location loc) {
+-        hdr_print(out, loc_tab.line_maps[loc.map_tag], mtype, fmt, (decltype(args)) args...);
+-        line_render( out, loc_tab.get_map_tag(min), loc_tab.get_map_tag(max), loc_tab.locs, underline);
+-      },
+-      [](macro_location) {
++    line_render(out, loc_tab.get_map_tag(min), loc_tab.get_map_tag(max),  underline);
++  }
++
++
++  template<class ...T>
++  void diagnostic_impl(FILE *out, rich_location loc, message_type mtype, std::format_string<T...> fmt, T&& ...args) {
++    hdr_print(out, loc_tab.line_maps[loc_tab.get_map_tag(loc.main_loc)], mtype, fmt, (decltype(args)) args...);
++    diagnostic_renderer(out, loc);
++
++    visit(loc_tab[loc.main_loc], overload {
++      [](location) {},
++      [&](macro_location ml) {
++        (*this)(ml.in_definition, "note"_s, "in definition of macro");
+       }
+     });
+-
+   }
+ };
+ 
+diff --git a/driver.hpp b/driver.hpp
+index 4558a02..d383a30 100644
+--- a/driver.hpp
++++ b/driver.hpp
+@@ -11,11 +11,8 @@ struct option {
+   std::vector<fs::path> system_include_paths = {
+     "/usr/local/include",
+     "/usr/include",
+-    "/usr/lib/gcc/x86_64-pc-linux-gnu/13.2.1/include/",
+-    "/usr/lib/clang/17/include/",
+-    "/usr/include/c++/14.1.1/",
+-    //"/usr/include/c++/14.1.1/bits/"
+-    "/usr/include/c++/14.1.1/x86_64-pc-linux-gnu/"
++    "/usr/include/x86_64-linux-gnu",
++    "/usr/lib/gcc/x86_64-redhat-linux/14/include"
+   };
+ };
+ 
+diff --git a/flat-map.hpp b/flat-map.hpp
+index 981de85..d1c5fd8 100644
+--- a/flat-map.hpp
++++ b/flat-map.hpp
+@@ -14,10 +14,7 @@ public:
+   auto begin() const { return storage.begin(); }
+   auto end()   const { return storage.end();   }
+   auto find(const Key &key)   {
+-  //  return std::ranges::find(storage, key, &pair_value::key);
+-    for(auto p = storage.begin(); p != this->end(); ++p)
+-      if(p->key == key) return p;
+-      return storage.end();
++    return std::ranges::find_if(storage, [&](auto &kv) { return kv.key == key; });
+   }
+ 
+   void push_back(key_value kv) { storage.push_back(mov(kv)); }
+diff --git a/macro.hpp b/macro.hpp
+index d67cb0c..38b5079 100644
+--- a/macro.hpp
++++ b/macro.hpp
+@@ -45,7 +45,6 @@ lex::token preprocessor::get_token_from_stream_1(auto &streams, auto& ...s) {
+ lex::token preprocessor::get_token_from_stream(auto &streams, auto& ...s) {
+   lex::token res = get_token_from_stream_1(streams, s...);
+   if(res.paste_left) {
+-#if 1
+     std::string buf;
+ 
+     buf += res.spelling();
+@@ -61,11 +60,6 @@ lex::token preprocessor::get_token_from_stream(auto &streams, auto& ...s) {
+ 
+       res.paste_left = rhs.paste_left;
+     }
+-#else
+-
+-
+-
+-#endif
+   }
+ 
+   if(is<lex::identifier>(res)) ref_tuple(streams, s...)(for_each([&](auto& streams) {
+@@ -518,7 +512,6 @@ void preprocessor::init_builtin_macro() {
+ 
+             #define __CHAR_BIT__ 8
+ 
+-
+             #define __has_feature(x) 0  // Compatibility with non-clang compilers.
+             #define __has_attribute(x) 1
+             #define __has_cpp_attribute(x) 1
+diff --git a/main.cpp b/main.cpp
+index b69a554..62c9a7e 100644
+--- a/main.cpp
++++ b/main.cpp
+@@ -44,18 +44,18 @@ using namespace c9;
+ 
+ namespace c9 { namespace tree {
+ #ifdef EXPLICIT_TREE_SPEC
+-#define INTEGRAL_BUILTIN_TYPE(name, ...)  template<> name type_node<name##_t> = name##_t{};
+-INTEGRAL_BUILTIN_TYPE(char_type, : unsigned_integral_type_t {});
+-INTEGRAL_BUILTIN_TYPE(unsigned_char_type, : signed_integral_type_t {});
+-INTEGRAL_BUILTIN_TYPE(signed_char_type, : signed_integral_type_t {});
+-INTEGRAL_BUILTIN_TYPE(short_type, : signed_integral_type_t {});
+-INTEGRAL_BUILTIN_TYPE(unsigned_short_type, : unsigned_integral_type_t {});
+-INTEGRAL_BUILTIN_TYPE(int_type, : signed_integral_type_t {});
+-INTEGRAL_BUILTIN_TYPE(unsigned_int_type, : unsigned_integral_type_t {});
+-INTEGRAL_BUILTIN_TYPE(long_type, : signed_integral_type_t {});
+-INTEGRAL_BUILTIN_TYPE(unsigned_long_type, : unsigned_integral_type_t {});
+-INTEGRAL_BUILTIN_TYPE(long_long_type, : signed_integral_type_t {});
+-INTEGRAL_BUILTIN_TYPE(unsigned_long_long_type, : unsigned_integral_type_t {});
++#define BUILTIN_TYPE_DEF(name, ...)  template<> name type_node<name##_t> = name##_t{};
++BUILTIN_TYPE_DEF(char_type, : unsigned_integral_type_t {});
++BUILTIN_TYPE_DEF(unsigned_char_type, : signed_integral_type_t {});
++BUILTIN_TYPE_DEF(signed_char_type, : signed_integral_type_t {});
++BUILTIN_TYPE_DEF(short_type, : signed_integral_type_t {});
++BUILTIN_TYPE_DEF(unsigned_short_type, : unsigned_integral_type_t {});
++BUILTIN_TYPE_DEF(int_type, : signed_integral_type_t {});
++BUILTIN_TYPE_DEF(unsigned_int_type, : unsigned_integral_type_t {});
++BUILTIN_TYPE_DEF(long_type, : signed_integral_type_t {});
++BUILTIN_TYPE_DEF(unsigned_long_type, : unsigned_integral_type_t {});
++BUILTIN_TYPE_DEF(long_long_type, : signed_integral_type_t {});
++BUILTIN_TYPE_DEF(unsigned_long_long_type, : unsigned_integral_type_t {});
+ #endif
+   tree_arena a{};
+ }}
+@@ -66,25 +66,25 @@ int main(int argc, char **argv) {
+   signal(SIGSEGV, handler);   // install our handler
+   driver d;
+ 
+-  auto &ff = d.files["../../tmp.cpp"];
+ 
++  auto &ff = d.files["../../tmp.cpp"];
+ 
+ 
+ 	{
+ 		using namespace  tree;
+-#define INTEGRAL_BUILTIN_TYPE(name, ...) type_node<name##_t> = name##_t{};
+-
+-  	INTEGRAL_BUILTIN_TYPE(char_type, : unsigned_integral_type_t {});
+-  	INTEGRAL_BUILTIN_TYPE(unsigned_char_type, : signed_integral_type_t {});
+-  	INTEGRAL_BUILTIN_TYPE(signed_char_type, : signed_integral_type_t {});
+-  	INTEGRAL_BUILTIN_TYPE(short_type, : signed_integral_type_t {});
+-  	INTEGRAL_BUILTIN_TYPE(unsigned_short_type, : unsigned_integral_type_t {});
+-  	INTEGRAL_BUILTIN_TYPE(int_type, : signed_integral_type_t {});
+-  	INTEGRAL_BUILTIN_TYPE(unsigned_int_type, : unsigned_integral_type_t {});
+-  	INTEGRAL_BUILTIN_TYPE(long_type, : signed_integral_type_t {});
+-  	INTEGRAL_BUILTIN_TYPE(unsigned_long_type, : unsigned_integral_type_t {});
+-  	INTEGRAL_BUILTIN_TYPE(long_long_type, : signed_integral_type_t {});
+-  	INTEGRAL_BUILTIN_TYPE(unsigned_long_long_type, : unsigned_integral_type_t {});
++#define BUILTIN_TYPE_DEF(name, ...) type_node<name##_t> = name##_t{};
++BUILTIN_TYPE_DEF(void_type);
++  	BUILTIN_TYPE_DEF(char_type, : unsigned_integral_type_t {});
++  	BUILTIN_TYPE_DEF(unsigned_char_type, : signed_integral_type_t {});
++  	BUILTIN_TYPE_DEF(signed_char_type, : signed_integral_type_t {});
++  	BUILTIN_TYPE_DEF(short_type, : signed_integral_type_t {});
++  	BUILTIN_TYPE_DEF(unsigned_short_type, : unsigned_integral_type_t {});
++  	BUILTIN_TYPE_DEF(int_type, : signed_integral_type_t {});
++  	BUILTIN_TYPE_DEF(unsigned_int_type, : unsigned_integral_type_t {});
++  	BUILTIN_TYPE_DEF(long_type, : signed_integral_type_t {});
++  	BUILTIN_TYPE_DEF(unsigned_long_type, : unsigned_integral_type_t {});
++  	BUILTIN_TYPE_DEF(long_long_type, : signed_integral_type_t {});
++  	BUILTIN_TYPE_DEF(unsigned_long_long_type, : unsigned_integral_type_t {});
+ 
+ 
+ 
+@@ -110,13 +110,14 @@ tree::default_ =  [] {
+ 
+ 	parse::parser parser{d, pp};
+ 
+-	std::list<tree::statement> stmt;
+-	while(parser.peek_token()) {
+-		auto tree = parser.declaration();
+-
+-		tree::dumper{stderr}.dump(tree);
+-		while(parser.peek_token() == ";"_s)
++	for(; ;) {
++    while(parser.peek_token() == ";"_s)
+ 			parser.consume();
++    if(parser.peek_token()) {
++		  auto tree = parser.declaration();
++    } else break;
++		//tree::dumper{stderr}.dump(tree);
++
+ 	}
+ 
+ 
+diff --git a/parse.hpp b/parse.hpp
+index cef6ae8..758cd1a 100644
+--- a/parse.hpp
++++ b/parse.hpp
+@@ -37,11 +37,9 @@ sv to_sv(storage_class_spec scs) {
+ 
+ 
+ 
+-struct parser : lex_spirit {
++struct parser : sema::semantics, lex_spirit {
+   driver &d;
+ 
+-  sema::semantics sm;
+-
+   parser(driver &d, auto&& ...x) : d{d}, lex_spirit{*this, (decltype(x)) x...} {}
+ 
+   bool require(auto &&tok) {
+@@ -77,6 +75,7 @@ struct parser : lex_spirit {
+       [](sema::id &id) { return id.node && is<tree::typedef_decl_t>(id.node->node->decl); },
+       [](keyword kw) {
+         switch(kw) {
++          case keyword::void_:
+           case keyword::int_:
+           case keyword::char_:
+           case keyword::long_:
+@@ -157,10 +156,25 @@ struct parser : lex_spirit {
+         }
+         return {};
+       },
+-      [&](auto &) -> tree::expression {
++      [&]<class T>(T &v) -> tree::expression {
+         location_t loc = peek_token().loc;
+         consume();
+-        error(loc, {}, "primary expected"); return {};
++        if constexpr(__is_same(T, keyword))
++          switch(v) {
++            case keyword::sizeof_: {
++              tree::sizeof_expression_t s;
++              if(peek_token() == "("_s && starts_typename(peek_2nd_token())) {
++                consume();
++                s.arg = type_name();
++                *this <= ")"_req;
++              } else
++                s.arg = unary_expression();
++              return s;
++            }
++            default: break;
++          }
++        error(loc, {}, "primary expected");
++        return {};
+       }
+     });
+   }
+@@ -312,9 +326,44 @@ struct parser : lex_spirit {
+     struct {
+       size_t times{};
+       location_t loc;
++      operator bool() { return times; }
+     } unsigned_, signed_, long_, short_;
+   };
+ 
++  void process_type_spec(type_spec_state tss, tree::type_decl &type) {
++    if(tss.long_ && tss.short_)
++      error(tss.long_.loc, {tss.short_.loc}, "long and short specifiers cannot be used both");
++    else if(tss.short_)
++      type(overload {
++        [&](tree::char_type_t &) {},
++        [&](tree::int_type_t &)   { type = tree::short_type_node;  },
++        [&](tree::empty_node_t &)   { type = tree::short_type_node;  },
++        [&](auto &) { error(tss.short_.loc, {}, "short specifier must be used with integer type");  }
++      });
++    else
++      switch(tss.long_.times) {
++        case 1: type = tree::long_type_node; break;
++        case 2: type = tree::long_long_type_node; break;
++      }
++
++    if(tss.unsigned_ && tss.signed_)
++      error(tss.signed_.loc, {tss.unsigned_.loc}, "unsigned and signed specifiers cannot be used both");
++    else if(tss.unsigned_)
++      type(overload {
++        [&](tree::empty_node_t &) { type = tree::unsigned_int_type_node; },
++        [&](tree::char_type_t &) {},
++        [&](narrow<tree::signed_integral_type_t> auto &tree) { type = make_unsigned(tree); },
++        [&](auto &) { error(tss.unsigned_.loc, {}, "unsigned must be used with integer type");  }
++      });
++    else if(tss.signed_)
++      type(overload {
++        [&](tree::empty_node_t &) { type = tree::int_type_node; },
++        [&](tree::char_type_t &) { type = tree::signed_char_type_node; },
++        [&](narrow<tree::signed_integral_type_t> auto &tree) {},
++        [&](auto &) { error(tss.signed_.loc, {}, "signed must be used with integer type");  }
++      });
++  }
++
+ 
+   bool type_qualifer(tree::type_name &type) {
+     return *this <= ((keyword::const_,     [&] { type->is_const = true;    })
+@@ -345,7 +394,7 @@ struct parser : lex_spirit {
+       consume();
+     }
+ 
+-    auto &node = sm.get_or_def_node(name);;
++    auto &node = get_or_def_node(name);;
+     if(is_struct) {
+       if(!node.struct_decl) node.struct_decl = tree::struct_decl_t{};
+       td = node.struct_decl;
+@@ -384,7 +433,9 @@ struct parser : lex_spirit {
+           break;
+       }
+       *this <= "}"_req;
+-      if((is_struct && node.struct_decl->def) || (!is_struct && node.union_decl->def))
++      if(name.name.size()
++        && ((is_struct && node.struct_decl->def) || (!is_struct && node.union_decl->def))
++      )
+         error(start_loc, {}, "redeclaration of {} '{}'", is_struct ? "struct" : "union", name.name);
+       else {
+         if(is_struct) node.struct_decl->def = s;
+@@ -408,20 +459,19 @@ struct parser : lex_spirit {
+   }
+ 
+   bool type_specifier(tree::type_name &type, type_spec_state &tcs) {
++    location_t loc = peek_token().loc;
+     return *this <= (
+-      (keyword::unsigned_  , [&] { ++tcs.unsigned_.times; tcs.unsigned_.loc = peek_token().loc; })
+-        | (keyword::signed_, [&] { ++tcs.signed_.times; tcs.signed_.loc = peek_token().loc;     })
+-        | (keyword::long_  , [&] { ++tcs.long_.times; tcs.long_.loc = peek_token().loc;         })
+-        | (keyword::short_ , [&] { ++tcs.short_.times; tcs.short_.loc = peek_token().loc;       })
+-        | (keyword::char_  , [&] { type->type = tree::char_type_node;                       })
+-        | (keyword::int_   , [&] { type->type = tree::int_type_node;                        })
++      (keyword::unsigned_  , [&] { ++tcs.unsigned_.times; tcs.unsigned_.loc = loc; })
++        | (keyword::signed_, [&] { ++tcs.signed_.times; tcs.signed_.loc     = loc; })
++        | (keyword::long_  , [&] { ++tcs.long_.times; tcs.long_.loc         = loc; })
++        | (keyword::short_ , [&] { ++tcs.short_.times; tcs.short_.loc       = loc; })
++        | (keyword::char_  , [&] { type->type = tree::char_type_node;              })
++        | (keyword::int_   , [&] { type->type = tree::int_type_node;               })
++        | (keyword::void_  , [&] { type->type = tree::void_type_node;              })
+         | &parser::struct_or_union_specifier / type->type
+         | &parser::typedef_spec / type);
+    }
+ 
+-  void process_type_spec(type_spec_state &tss, tree::type_name type) {
+-
+-  }
+ 
+   bool attribute_list(std::vector<tree::attribute> &attr_list) {
+     bool r{};
+@@ -481,7 +531,7 @@ struct parser : lex_spirit {
+       }())
+        r = true;
+ 
+-    process_type_spec(tss, dss.type);
++    process_type_spec(tss, dss.type->type);
+     return r;
+   }
+ 
+@@ -510,7 +560,7 @@ struct parser : lex_spirit {
+ 
+   void function_parameters(tree::function_type_t &fun) {
+     if(peek_token() != ")"_s) {
+-      sm.scopes.push_scope();
++      scopes.push_scope();
+       do {
+         if(*this <= "..."_s) {
+           fun.is_variadic = true;
+@@ -526,7 +576,7 @@ struct parser : lex_spirit {
+           }
+           fun.params.emplace_back(dctor);
+       } while(*this <= ","_s);
+-      sm.scopes.pop_scope();
++      scopes.pop_scope();
+     }
+     *this <= ")"_req;
+   }
+@@ -577,7 +627,7 @@ struct parser : lex_spirit {
+ 
+ 
+   template<class D> D do_definition(sema::id id, D sema::node_t::*field, auto decl)  {
+-    auto &node = sm.get_or_def_node(id);
++    auto &node = get_or_def_node(id);
+     if(node.*field) {
+        error(peek_token().loc, {}, "redifinition of '{}'", id.name);
+       return {};
+@@ -634,8 +684,8 @@ struct parser : lex_spirit {
+          decl = tree::typedef_decl{{ .name = dector_name.name, .type = type}};
+       else
+          decl = tree;
+-
+-      decl = do_definition(dector_name, &sema::node_t::decl, decl);
++      if(dector_name.name.size())
++        decl = do_definition(dector_name, &sema::node_t::decl, decl);
+     };
+ 
+     dector_type->type(overload {
+@@ -651,7 +701,7 @@ struct parser : lex_spirit {
+         bool body = !tail && peek_token() == "{"_s;
+ 
+         if(body) {
+-          sm.scopes.push_scope<sema::fn_scope>();
++          scopes.push_scope<sema::fn_scope>();
+           for(auto &dector : f.params)
+              do_definition(sema::id{dector.name}, &sema::node_t::decl, tree::variable_t{
+                .name = dector.name, .type = dector_type
+@@ -661,7 +711,7 @@ struct parser : lex_spirit {
+           tree::compound_statement_t compound;
+           while(peek_token() && peek_token() != "}"_s)
+             compound.emplace_back(block_item());
+-          sm.scopes.pop_scope();
++          scopes.pop_scope();
+           *this <= "}"_req;
+           fun->definition = compound;
+         }
+@@ -677,7 +727,7 @@ struct parser : lex_spirit {
+       },
+       [&](auto &) {
+         tree::variable var {{.name = dector_name.name, .type = dector_type,
+-          .is_global = sm.scopes.in_global()
++          .is_global = scopes.in_global()
+         }};
+ 
+         declarate(var, dector_type);
+@@ -735,17 +785,17 @@ struct parser : lex_spirit {
+     return statement();
+   }
+   tree::compound_statement compound_statement() {
+-    sm.scopes.push_scope();
++    scopes.push_scope();
+     tree::compound_statement_t compound;
+     while(peek_token() != "}"_s)
+       compound.emplace_back(block_item());
+-    sm.scopes.pop_scope();
++    scopes.pop_scope();
+     *this <= "}"_req;
+     return compound;
+   }
+ 
+   template<class Scope> tree::statement secondary_block(Scope scope = Scope{}) {
+-    sm.scopes.push_scope(mov(scope));
++    scopes.push_scope(mov(scope));
+     tree::statement stmt;
+     if(*this <= "{"_s) {
+       tree::compound_statement_t compound;
+@@ -755,7 +805,7 @@ struct parser : lex_spirit {
+       stmt = compound;
+     } else
+       stmt = statement();
+-    sm.scopes.pop_scope();
++    scopes.pop_scope();
+     return stmt;
+   }
+   tree::switch_statement switch_statement() {
+@@ -831,7 +881,7 @@ struct parser : lex_spirit {
+       [&](sema::id id)  {
+         consume();
+         tree::goto_statement r = tree::goto_statement_t{};
+-        sm.scopes.ctx_scope_get<sema::fn_scope>()
++        scopes.ctx_scope_get<sema::fn_scope>()
+           .top().get().labels.lookup_label(id.name, r);
+         return r;
+       },
+@@ -860,7 +910,7 @@ struct parser : lex_spirit {
+     if(*this <= keyword::goto_)
+       return goto_statement();
+     if(*this <= keyword::case_) {
+-      auto &switch_scopes = sm.scopes.ctx_scope_get<sema::switch_scope>();
++      auto &switch_scopes = scopes.ctx_scope_get<sema::switch_scope>();
+       if(switch_scopes.empty()) {
+         error(peek_token().loc, {}, "case label without according switch");
+         return {};
+@@ -874,8 +924,8 @@ struct parser : lex_spirit {
+       return case_;
+     }
+     if(*this <= keyword::break_) {
+-      if(!sm.scopes.ctx_scope_get<sema::switch_scope>().empty()
+-        && !sm.scopes.ctx_scope_get<sema::control_scope>().empty()
++      if(!scopes.ctx_scope_get<sema::switch_scope>().empty()
++        && !scopes.ctx_scope_get<sema::control_scope>().empty()
+       ) {
+         error(peek_token().loc, {loc}, "stray break statement");
+         return {};
+@@ -885,8 +935,8 @@ struct parser : lex_spirit {
+       return tree::break_statement_t{};
+     }
+     if(*this <= keyword::continue_) {
+-      if(!sm.scopes.ctx_scope_get<sema::switch_scope>().empty()
+-        && !sm.scopes.ctx_scope_get<sema::control_scope>().empty()
++      if(!scopes.ctx_scope_get<sema::switch_scope>().empty()
++        && !scopes.ctx_scope_get<sema::control_scope>().empty()
+       ) {
+         error(peek_token().loc, {}, "stray break statement");
+         return {};
+@@ -909,7 +959,7 @@ struct parser : lex_spirit {
+       auto stmt = block_item();
+ 
+       tree::label label{{.name = id.name, .stmt = stmt}};
+-      if(!sm.scopes.ctx_scope_get<sema::fn_scope>()
++      if(!scopes.ctx_scope_get<sema::fn_scope>()
+           .top().get().labels.process_label(label)
+       ) {
+         error(tok.loc, {colon_loc}, "redeclaration of label named '{}'", id.name);
+@@ -931,7 +981,7 @@ struct parser : lex_spirit {
+   }
+ };
+ 
+-sema::id lex_spirit::lookup(lex::identifier s) { return parse.sm.lookup(s); }
++sema::id lex_spirit::lookup(lex::identifier s) { return parse.name_lookup(s); }
+ 
+ template<class T>
+ bool lex_spirit::operator<=(require_value<T> v) {
+diff --git a/semantics.hpp b/semantics.hpp
+index ebe0c2c..53debd0 100644
+--- a/semantics.hpp
++++ b/semantics.hpp
+@@ -53,7 +53,7 @@ struct scope  {  variant<compound_scope, fn_scope, control_scope, switch_scope>
+ 
+ 
+ template<class ...T> struct scope_manager {
+-  struct scope : flat_map<string, node_t> { variant<T...> v; };
++  struct scope : /*flat_map*/std::unordered_map<string, node_t, string::hash> { variant<T...> v; };
+   std::list<scope> stack;
+ private:
+   std::tuple<std::stack<refw<T>>...> ctx_scope_stacks;
+@@ -77,12 +77,12 @@ struct semantics {
+   scope_manager<compound_scope, fn_scope, control_scope, switch_scope> scopes;
+ 
+   auto &global_scope() { return scopes.stack.front(); }
+-  id lookup(string name) {
++  id name_lookup(string name) {
+     auto &scopes = this->scopes.stack;
+     size_t scop = scopes.size() - 1;
+     for(auto &scope : scopes | rv::reverse) {
+       if(auto p = scope.find(name); p != scope.end())
+-        return { .name = name, .node = node_ref{ scop, &p->value } };
++        return { .name = name, .node = node_ref{ scop, &p->/*value*/second } };
+ 
+       --scop;
+     }
+@@ -97,7 +97,7 @@ struct semantics {
+   }
+ 
+ 
+-  semantics() { scopes.push_scope(compound_scope{}); }
++  semantics() { scopes.push_scope(compound_scope{});  }
+ };
+ 
+ 
+diff --git a/tree-dump.hpp b/tree-dump.hpp
+index 92d9210..ad3490f 100644
+--- a/tree-dump.hpp
++++ b/tree-dump.hpp
+@@ -9,7 +9,7 @@ struct dumper {
+   FILE *out;
+ 
+   template<class ...T> void dump_print(size_t ntab, std::format_string<T...> fmt, T&& ...args) {
+-    fprint(out, "{:>{}}", "", ntab);
++    fprint(out, "{:->{}}", ">", ntab);
+     fprintln(out, fmt, (decltype(args)) args...);
+   }
+ 
+@@ -19,7 +19,7 @@ private:
+     fprintln(out, "{}", __PRETTY_FUNCTION__);
+   }
+ 
+-  void dump(empty_node_t &, size_t ntab) { dump_print(ntab, "empty node");  }
++  void dump(empty_node_t &, size_t ntab) { dump_print(ntab, "empty-node");  }
+ // types
+   void dump(char_type_t &, size_t ntab) { dump_print(ntab, "char");}
+   void dump(unsigned_char_type_t &, size_t ntab) { dump_print(ntab, "unsigned char");}
+@@ -35,9 +35,13 @@ private:
+     dump_print(ntab, "typedef: {}", tf.name);
+     dump(tf.type, ntab + 2);
+   }
++  void dump(record_decl_t& rd, size_t ntab) {
++    dump_print(ntab, "fields:");
++    for(auto field : rd.fields) dump(field, ntab + 2);
++  }
+   template<derived_from<structural_decl_t> T> void dump(T &structural, size_t ntab) {
+     dump_print(ntab, "{}: {}", __is_same(T, struct_decl_t) ? "struct" : "union", structural.name);
+-    // TODO dump struct
++    dump(structural.def, ntab + 2);
+   }
+   void dump(function_type_t fun_type, size_t ntab) {
+     dump_print(ntab, "function-type: ");
+@@ -77,9 +81,9 @@ private:
+ // declarations
+   void dump(variable_t &var, size_t ntab) {
+     dump_print(ntab, "var-decl: {}", var.name);
+-    dump(var.type, ntab);
+-    dump_print(ntab, "definition:");
+-    dump(var.definition, ntab + 2);
++    dump(var.type, ntab + 2);
++    dump_print(ntab + 2, "definition:");
++    dump(var.definition, ntab + 4);
+   }
+   void dump(function_t &fun, size_t ntab) {
+     dump_print(ntab, "function: {}", fun.name);
+diff --git a/tree-trait.hpp b/tree-trait.hpp
+index b12ae8e..7345820 100644
+--- a/tree-trait.hpp
++++ b/tree-trait.hpp
+@@ -3,9 +3,9 @@
+ #include "tree.hpp"
+ 
+ namespace c9 { namespace tree {
+-  type_name make_pointer(auto type) {
+-    return type_name{{.type = pointer_t{.type = type}}};
+-  };
++type_name make_pointer(auto type) {
++  return type_name{{.type = pointer_t{.type = type}}};
++};
+ namespace make_unsigend_detail {
+ auto operator>(auto signed_, auto unsigned_) { return [=](decltype(signed_)::value_type &) { return unsigned_; }; }
+ }
+diff --git a/tree.hpp b/tree.hpp
+index b8ea815..8373f3c 100644
+--- a/tree.hpp
++++ b/tree.hpp
+@@ -263,34 +263,31 @@ TREE_DEF(array, : type_decl_t { type_name type; expression numof; });
+ 
+ TREE_DEF(cast_expression, : expression_t { expression cast_from; type_name cast_to; });
+ 
+-
++TREE_DEF(sizeof_expression, : expression_t {  variant<type_name, expression> arg; });
+ 
+ TREE_NARROW_DEF(builtin_type, : type_decl_t {});
+-
++template<narrow<builtin_type_t> T> static inline tree_value<T> type_node;
++#define BUILTIN_TYPE_DEF(name, a...) \
++  TREE_DEF(name, a); \
++  static auto &name##_node =   type_node<name##_t>;
++BUILTIN_TYPE_DEF(void_type, : builtin_type_t {});
+ TREE_NARROW_DEF(integer_type, : builtin_type_t { size_t size; });
+ 
+ 
+-TREE_NARROW_DEF(unsigned_integral_type, : integer_type_t { constexpr static bool unsigned_tag{}; });
+-TREE_NARROW_DEF(signed_integral_type,   : integer_type_t { constexpr static bool signed_tag{}; });
+-
++TREE_NARROW_DEF(unsigned_integral_type, : integer_type_t { void unsigned_tag(); });
++TREE_NARROW_DEF(signed_integral_type,   : integer_type_t { void signed_tag(); });
+ 
+-
+-template<narrow<integer_type_t> T> static inline tree_value<T> type_node;
+-#define INTEGRAL_BUILTIN_TYPE(name, a...) \
+-  TREE_DEF(name, a); \
+-  static auto &name##_node =   type_node<name##_t>;
+-
+-INTEGRAL_BUILTIN_TYPE(char_type, : unsigned_integral_type_t {});
+-INTEGRAL_BUILTIN_TYPE(unsigned_char_type, : unsigned_integral_type_t {});
+-INTEGRAL_BUILTIN_TYPE(signed_char_type, : signed_integral_type_t {});
+-INTEGRAL_BUILTIN_TYPE(short_type, : signed_integral_type_t {});
+-INTEGRAL_BUILTIN_TYPE(unsigned_short_type, : unsigned_integral_type_t {});
+-INTEGRAL_BUILTIN_TYPE(int_type, : signed_integral_type_t {});
+-INTEGRAL_BUILTIN_TYPE(unsigned_int_type, : unsigned_integral_type_t {});
+-INTEGRAL_BUILTIN_TYPE(long_type, : signed_integral_type_t {});
+-INTEGRAL_BUILTIN_TYPE(unsigned_long_type, : unsigned_integral_type_t {});
+-INTEGRAL_BUILTIN_TYPE(long_long_type, : signed_integral_type_t {});
+-INTEGRAL_BUILTIN_TYPE(unsigned_long_long_type, : unsigned_integral_type_t {});
++BUILTIN_TYPE_DEF(char_type, : unsigned_integral_type_t {});
++BUILTIN_TYPE_DEF(unsigned_char_type, : unsigned_integral_type_t {});
++BUILTIN_TYPE_DEF(signed_char_type, : signed_integral_type_t {});
++BUILTIN_TYPE_DEF(short_type, : signed_integral_type_t {});
++BUILTIN_TYPE_DEF(unsigned_short_type, : unsigned_integral_type_t {});
++BUILTIN_TYPE_DEF(int_type, : signed_integral_type_t {});
++BUILTIN_TYPE_DEF(unsigned_int_type, : unsigned_integral_type_t {});
++BUILTIN_TYPE_DEF(long_type, : signed_integral_type_t {});
++BUILTIN_TYPE_DEF(unsigned_long_type, : unsigned_integral_type_t {});
++BUILTIN_TYPE_DEF(long_long_type, : signed_integral_type_t {});
++BUILTIN_TYPE_DEF(unsigned_long_long_type, : unsigned_integral_type_t {});
+ 
+ static integer_type ptrdiff_type_node;
+ 
+@@ -371,8 +368,6 @@ template<class T_t> template<class T> bool tree_value<T_t>::is_narrow() {
+ 
+ template<class Q> constexpr auto tree_value<Q>::notypes() { return size_c<find()>;   }
+ 
+-
+-
+ inline variable record_decl_t::find(string name) {
+   c9_assert(name.size());
+   variable r;
+@@ -392,4 +387,4 @@ inline variable record_decl_t::find(string name) {
+ 
+ 
+ 
+-#undef INTEGRAL_BUILTIN_TYPE
++#undef BUILTIN_TYPE_DEF

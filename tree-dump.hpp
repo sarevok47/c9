@@ -9,7 +9,7 @@ struct dumper {
   FILE *out;
 
   template<class ...T> void dump_print(size_t ntab, std::format_string<T...> fmt, T&& ...args) {
-    fprint(out, "{:>{}}", "", ntab);
+    fprint(out, "{:->{}}", ">", ntab);
     fprintln(out, fmt, (decltype(args)) args...);
   }
 
@@ -19,7 +19,7 @@ private:
     fprintln(out, "{}", __PRETTY_FUNCTION__);
   }
 
-  void dump(empty_node_t &, size_t ntab) { dump_print(ntab, "empty node");  }
+  void dump(empty_node_t &, size_t ntab) { dump_print(ntab, "empty-node");  }
 // types
   void dump(char_type_t &, size_t ntab) { dump_print(ntab, "char");}
   void dump(unsigned_char_type_t &, size_t ntab) { dump_print(ntab, "unsigned char");}
@@ -35,9 +35,13 @@ private:
     dump_print(ntab, "typedef: {}", tf.name);
     dump(tf.type, ntab + 2);
   }
+  void dump(record_decl_t& rd, size_t ntab) {
+    dump_print(ntab, "fields:");
+    for(auto field : rd.fields) dump(field, ntab + 2);
+  }
   template<derived_from<structural_decl_t> T> void dump(T &structural, size_t ntab) {
     dump_print(ntab, "{}: {}", __is_same(T, struct_decl_t) ? "struct" : "union", structural.name);
-    // TODO dump struct
+    dump(structural.def, ntab + 2);
   }
   void dump(function_type_t fun_type, size_t ntab) {
     dump_print(ntab, "function-type: ");
@@ -77,9 +81,9 @@ private:
 // declarations
   void dump(variable_t &var, size_t ntab) {
     dump_print(ntab, "var-decl: {}", var.name);
-    dump(var.type, ntab);
-    dump_print(ntab, "definition:");
-    dump(var.definition, ntab + 2);
+    dump(var.type, ntab + 2);
+    dump_print(ntab + 2, "definition:");
+    dump(var.definition, ntab + 4);
   }
   void dump(function_t &fun, size_t ntab) {
     dump_print(ntab, "function: {}", fun.name);
