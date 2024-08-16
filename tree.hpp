@@ -291,9 +291,19 @@ BUILTIN_TYPE_DEF(unsigned_long_long_type, : unsigned_integral_type_t {});
 
 static integer_type ptrdiff_type_node;
 
+TREE_NARROW_DEF(floating_type, : builtin_type_t { size_t size; });
+
+BUILTIN_TYPE_DEF(float_type,       : floating_type_t {});
+BUILTIN_TYPE_DEF(double_type,      : floating_type_t {});
+BUILTIN_TYPE_DEF(long_double_type, : floating_type_t {});
+
 TREE_DEF(int_cst_expression, : expression_t {
   uint64_t value;
   integer_type type;
+});
+TREE_DEF(float_cst_expression, : expression_t {
+  long double value;
+  floating_type type;
 });
 TREE_DEF(compound_literal, : expression_t {
   type_name type;

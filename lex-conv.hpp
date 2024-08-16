@@ -6,7 +6,6 @@
 namespace c9 { namespace lex {
 
 
-using udl_string = sv;
 using integer_suffix = variant_t<""_s, "ll"_s, "l"_s, "L"_s, "u"_s,
                                  "LL"_s, "Ll"_s, "lL"_s, "ul"_s, "Ul"_s, "UL"_s, "lU"_s,
                                  "LLU"_s, "LLu"_s, "llU"_s, "llu"_s, "ULL"_s, "Ull"_s, "uLL"_s,
@@ -15,17 +14,17 @@ struct integer {
   uint64_t value;
 
 
-  variant<integer_suffix, udl_string> suffix;
+  integer_suffix suffix;
 
 
   integer &operator=(uint64_t value) { this->value = value; return *this; }
 };
 
-using floating_suffix = variant_t<"f"_s, "l"_s, "L"_s, "f16"_s, "F16"_s, "f32"_s, "F32"_s, "f64"_s, "F64"_s, "f128"_s, "F128"_s, "bf16"_s, "BF16"_s>;
+using floating_suffix = variant_t<""_s, "f"_s, "l"_s, "L"_s>;
 struct floating {
   long double value;
 
-  variant<floating_suffix, udl_string> suffix;
+  floating_suffix suffix;
 };
 
 struct character {
@@ -52,7 +51,8 @@ character interpret_char(char_literal cl) {
 
 enum class interpret_status {
   out_of_range = 1,
-  exponent_missing
+  exponent_missing,
+  invalid_suffix,
 };
 
 
@@ -87,7 +87,7 @@ integer interpret_integer(numeric_constant nc, interpret_status &ok) {
   if(p == nc.end())
     r.suffix = isuffix;
   else
-    r.suffix = udl_string{suffix, nc.end()};
+   ok = interpret_status::invalid_suffix;
   return r;
 }
 
@@ -98,7 +98,8 @@ floating interpret_floating(numeric_constant nc, interpret_status &ok) {
 
   if(hex && nc.exponent)
     ok = interpret_status::exponent_missing;
-
+  else
+    ok = interpret_status::invalid_suffix;
   floating r{};
 
   auto [suffix, ec] = std::from_chars(p, nc.end(), r.value);
@@ -109,7 +110,7 @@ floating interpret_floating(numeric_constant nc, interpret_status &ok) {
   if(p == nc.end())
     r.suffix = fsuffix;
   else
-    r.suffix = udl_string{suffix, p};
+    ok = interpret_status::invalid_suffix;
 
   return r;
 }

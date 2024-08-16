@@ -119,7 +119,7 @@ struct parser : sema::semantics, lex_spirit {
         lex::interpret_status stat;
         auto v = lex::interpret_nc(nc, stat);
         return visit(v, overload {
-          [&](lex::integer int_) -> tree::expression{
+          [&](lex::integer int_) -> tree::expression {
             uint64_t value;
             if(stat == lex::interpret_status::out_of_range) {
 
@@ -128,7 +128,16 @@ struct parser : sema::semantics, lex_spirit {
             }
             return tree::int_cst_expression{{.value = value, .type = tree::int_type_node}};
           },
-          [&](lex::floating)-> tree::expression {}
+          [&](lex::floating float_) -> tree::expression {
+            tree::float_cst_expression_t fexpr { .value = float_.value };
+            visit(float_.suffix, overload {
+              [&](decltype("f"_s)) { fexpr.type = tree::float_type_node; },
+              [&](decltype(""_s))  { fexpr.type = tree::double_type_node; },
+              [&](decltype("l"_s)) { fexpr.type = tree::double_type_node; },
+              [&](decltype("L"_s)) { fexpr.type = tree::long_double_type_node; },
+            });
+            return fexpr;
+          }
         });
       },
       [&](lex::char_literal cl) -> tree::expression {
@@ -340,11 +349,24 @@ struct parser : sema::semantics, lex_spirit {
         [&](tree::empty_node_t &)   { type = tree::short_type_node;  },
         [&](auto &) { error(tss.short_.loc, {}, "short specifier must be used with integer type");  }
       });
-    else
-      switch(tss.long_.times) {
-        case 1: type = tree::long_type_node; break;
-        case 2: type = tree::long_long_type_node; break;
-      }
+    else if(tss.long_)
+      type(overload {
+        [&](tree::int_type_t &) {
+          switch(tss.long_.times) {
+            case 1: type = tree::long_type_node; break;
+            case 2: type = tree::long_long_type_node; break;
+          }
+        },
+        [&](tree::empty_node_t &) {
+          switch(tss.long_.times) {
+            case 1: type = tree::long_type_node; break;
+            case 2: type = tree::long_long_type_node; break;
+          }
+        },
+        [&](tree::double_type_t &) { type = tree::long_double_type_node; },
+        [&](auto &) { error(tss.short_.loc, {}, "long specifier must be used with 'int' or 'double' specifier");  }
+      });
+
 
     if(tss.unsigned_ && tss.signed_)
       error(tss.signed_.loc, {tss.unsigned_.loc}, "unsigned and signed specifiers cannot be used both");
@@ -468,6 +490,8 @@ struct parser : sema::semantics, lex_spirit {
         | (keyword::char_  , [&] { type->type = tree::char_type_node;              })
         | (keyword::int_   , [&] { type->type = tree::int_type_node;               })
         | (keyword::void_  , [&] { type->type = tree::void_type_node;              })
+        | (keyword::float_ ,  [&] { type->type = tree::float_type_node;            })
+        | (keyword::double_,  [&] { type->type = tree::double_type_node;           })
         | &parser::struct_or_union_specifier / type->type
         | &parser::typedef_spec / type);
    }

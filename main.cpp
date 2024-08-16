@@ -86,6 +86,9 @@ BUILTIN_TYPE_DEF(void_type);
   	BUILTIN_TYPE_DEF(long_long_type, : signed_integral_type_t {});
   	BUILTIN_TYPE_DEF(unsigned_long_long_type, : unsigned_integral_type_t {});
 
+  BUILTIN_TYPE_DEF(float_type,       : floating_type_t {});
+  BUILTIN_TYPE_DEF(double_type,      : floating_type_t {});
+  BUILTIN_TYPE_DEF(long_double_type, : floating_type_t {});
 
 
 	}

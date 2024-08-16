@@ -61,17 +61,8 @@ bool preprocessor::primary(pp_num &value) {
             ok = false;
           } else {
             value = int_.value;
-            value.unsigned_ = visit(int_.suffix, overload {
-              [&](lex::udl_string) {
-                d.diag(tok.loc, "error"_s, "too large integer constant appears in the preprocessor expression");
-                ok = false;
-                return false;
-              },
-              [&](lex::integer_suffix suffix) {
-                return visit(suffix, [&](auto s) {
-                  return sv{s.c_str()}.contains('u') || sv{s.c_str()}.contains('U');
-                });
-              }
+            value.unsigned_ = visit(int_.suffix, [&](auto s) {
+              return sv{s.c_str()}.contains('u') || sv{s.c_str()}.contains('U');
             });
           }
           return ok;
