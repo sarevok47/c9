@@ -707,10 +707,14 @@ struct parser : sema::semantics, lex_spirit {
 
 
     auto declarate = [&](auto tree, auto type) {
-      if(dss.storage_class == storage_class_spec::typedef_)
-         decl = tree::typedef_decl{{ .name = dector_name.name, .type = type}};
-      else
-         decl = tree;
+      switch(dss.storage_class) {
+        case storage_class_spec::typedef_:
+          decl = tree::typedef_decl{{ .name = dector_name.name, .type = type}};
+          break;
+        case storage_class_spec::extern_:
+          if(dector_name.node) return;
+        default: break;
+      }
       if(dector_name.name.size())
         decl = do_definition(dector_name, &sema::node_t::decl, decl);
     };
