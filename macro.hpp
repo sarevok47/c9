@@ -511,7 +511,7 @@ void preprocessor::init_builtin_macro() {
             #define unix 1
 
             #define __CHAR_BIT__ 8
-
+#define __builtin_va_list int
             #define __has_feature(x) 0  // Compatibility with non-clang compilers.
             #define __has_attribute(x) 1
             #define __has_cpp_attribute(x) 1

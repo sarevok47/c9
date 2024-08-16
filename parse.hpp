@@ -368,7 +368,7 @@ struct parser : sema::semantics, lex_spirit {
   bool type_qualifer(tree::type_name &type) {
     return *this <= ((keyword::const_,     [&] { type->is_const = true;    })
                     | (keyword::volatile_, [&] { type->is_volatile = true; })
-                    | (keyword::restrict_, [&] { type->is_restrict = true; }));
+                    | (keyword::restrict_ | keyword::__restrict_, [&] { type->is_restrict = true; }));
   }
 
   bool storage_class_specifier(enum storage_class_spec &scs) {
@@ -485,10 +485,11 @@ struct parser : sema::semantics, lex_spirit {
         tree::attribute attr {.name = sema::id(tok).name };
 
         if(*this <= "("_s) {
-          if(attr.name == "access" && is<sema::id>(peek_token())) {
+          if((attr.name == "access" || attr.name == "__format__") && is<sema::id>(peek_token())) {
             sema::id &id = peek_token();
             attr.arguments.emplace_back(tree::identifier_token{{  .loc = peek_token().loc, .str = id.name }});
             consume();
+            *this <= ","_s;
           }
 
           if(peek_token() != ")"_s)
@@ -498,6 +499,7 @@ struct parser : sema::semantics, lex_spirit {
               if(!(*this <= ","_s))
                 break;
             }
+
           *this <= ")"_req;
         }
         attr_list.emplace_back(mov(attr));
@@ -676,6 +678,7 @@ struct parser : sema::semantics, lex_spirit {
   tree::decl init_decl(decl_specifier_seq &dss, bool tail = false) {
     sema::id dector_name;
     auto dector_type = declarator(dector_name, dss.type, dss.attrs);
+    *this <= &parser::attribute_list / dss.attrs;
     tree::decl decl;
 
 
