@@ -705,7 +705,6 @@ struct parser : sema::semantics, lex_spirit {
     *this <= &parser::attribute_list / dss.attrs;
     tree::decl decl;
 
-
     auto declarate = [&](auto tree, auto type) {
       switch(dss.storage_class) {
         case storage_class_spec::typedef_:
