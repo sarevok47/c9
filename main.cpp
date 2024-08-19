@@ -23,7 +23,7 @@
 #include <sys/prctl.h>
 
 #include  "parse.hpp"
-
+#include "cfg.hpp"
 void handler(int sig) {
   char pid_buf[30];
   sprintf(pid_buf, "%d", getpid());
@@ -118,6 +118,17 @@ tree::default_ =  [] {
 			parser.consume();
     if(parser.peek_token()) {
 		  auto tree = parser.declaration();
+      tree(overload {
+        [](auto &) {},
+        [&](tree::function_t &fun) {
+          cfg::cfg cfg;
+          cfg.construct(fun.definition);
+          for(cfg::basic_block *bb = &cfg.entry; bb; bb = bb->step()) {
+            fprintln(stdout, "bb_{}:", bb->i);
+            for(auto insn : bb->insns) simple::dumper{stdout}(insn);
+          }
+        }
+      });
     } else break;
 		//tree::dumper{stderr}.dump(tree);
 

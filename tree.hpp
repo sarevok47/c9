@@ -322,7 +322,7 @@ TREE_DEF(switch_statement, : statement_t {
 });
 TREE_DEF(while_statement, : statement_t { expression cond; statement body; });
 TREE_DEF(for_statement, : statement_t {
-  base clause;
+  variant<empty_node, decl, expression> clause;
   expression cond, step;
   statement body;
 });
