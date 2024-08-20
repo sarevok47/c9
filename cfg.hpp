@@ -125,11 +125,14 @@ class cfg {public:
         visit(for_.clause, [&]<class Tree>(tree::tree_value<Tree> tree) {
           if constexpr(!__is_same(Tree, tree::empty_node_t)) construct(tree);
         });
-        auto &loop_start = create_bb(last_bb);
         auto cond = construct(for_.cond);
+        auto cond_bb = last_bb;
+        auto &loop_body = create_bb(last_bb);
         construct(for_.body);
         construct(for_.step);
-        last_bb->br(cond, loop_start, create_bb(last_bb));
+        last_bb->jump(*cond_bb);
+        cond_bb->preds.emplace_back(last_bb);
+        cond_bb->br(cond, loop_body, create_bb(cond_bb));
       },
       [&]<narrow<tree::expression_t> T>(T &) {
         construct(tree::expression{tree::tree_value<T>(stmt)});
