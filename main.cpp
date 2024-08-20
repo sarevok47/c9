@@ -124,7 +124,17 @@ tree::default_ =  [] {
           cfg::cfg cfg;
           cfg.construct(fun.definition);
           for(cfg::basic_block *bb = &cfg.entry; bb; bb = bb->step()) {
-            fprintln(stdout, "bb_{}:", bb->i);
+            fprint(stdout, "bb_{}: succs:", bb->i);
+            for(auto succ : bb->succs | iter_range) {
+              fprint(stdout, "bb_{}", (*succ)->i);
+              if(succ + 1 != bb->succs.end()) fprint(stdout, ",");
+            }
+            fprint(stdout, " preds:", bb->i);
+            for(auto pred : bb->preds | iter_range) {
+              fprint(stdout, "bb_{}", (*pred)->i);
+              if(pred + 1 != bb->preds.end()) fprint(stdout, ",");
+            }
+            fprintln(stdout, ":");
             for(auto insn : bb->insns) simple::dumper{stdout}(insn);
           }
         }

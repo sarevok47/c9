@@ -105,7 +105,6 @@ class cfg {public:
       [](auto &) {},
       [&](tree::if_statement_t &if_) {
         auto cond = construct(if_.cond);
-
         auto pre_if = last_bb; // insert conditional jump here later
         auto &if_start = create_bb(pre_if);
         construct(if_.if_stmt);
@@ -118,7 +117,7 @@ class cfg {public:
           if_end->jump(*last_bb);
           pre_if->br(cond,  if_start, else_);
         } else {
-          create_bb(if_end);
+          create_bb(pre_if, if_end);
           pre_if->br(cond,  if_start, *last_bb);
         }
       },
