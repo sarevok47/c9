@@ -1,0 +1,11 @@
+
+
+Sun Sep  1 11:09:29 2024
+Command line: TestDisk
+
+TestDisk 7.2, Data Recovery Utility, February 2024
+Christophe GRENIER <grenier@cgsecurity.org>
+https://www.cgsecurity.org
+OS: Linux, kernel 6.10.3-200.fc40.x86_64 (#1 SMP PREEMPT_DYNAMIC Mon Aug  5 14:30:00 UTC 2024) x86_64
+Compiler: GCC 14.0
+ext2fs lib: 1.47.0, ntfs lib: libntfs-3g, reiserfs lib: none, ewf lib: 20140608, curses lib: ncurses 6.4

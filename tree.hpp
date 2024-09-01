@@ -1,8 +1,5 @@
 #pragma once
 
-#include <tree.hpp>
-#include <tree.hpp>
-
 #include "meta.hpp"
 #include "string.hpp"
 #include "variant.hpp"
@@ -23,8 +20,11 @@ constexpr auto binary_puncs = tuple(
     "=="_s, "!="_s, "^"_s, "|"_s,
     "&&"_s, "||"_s
 );
-constexpr auto unary_puncs = tuple("&"_s, "*"_s, "+"_s, "-"_s, "~"_s, "!"_s, "++"_s, "--"_s);
+constexpr auto unary_puncs = tuple("+"_s, "-"_s, "~"_s, "!"_s);
+constexpr auto crement_puncs = tuple("++"_s, "--"_s);
 using binary_tok = decltype(binary_puncs([](auto ...x) { return variant_t<x...>{}; }));
+using assign_tok = decltype(assign_puncs([](auto ...x) { return variant_t<x...>{}; }));
+using crement_tok = decltype(crement_puncs([](auto ...x) { return variant_t<x...>{}; }));
 
 constexpr bool is_assign(auto x) {
   return assign_puncs([=](auto ...tok) { return ((tok == x) || ...); });
@@ -32,7 +32,16 @@ constexpr bool is_assign(auto x) {
 constexpr bool is_binop(auto x) {
   return binary_puncs([=](auto ...tok) { return ((tok == x) || ...); });
 }
-
+constexpr bool is_unary(auto x) {
+  return assign_puncs([=](auto ...tok) { return ((tok == x) || ...); });
+}
+constexpr bool is_crement(auto x) {
+  return crement_puncs([=](auto ...tok) { return ((tok == x) || ...); });
+}
+constexpr auto is_relational(auto x) {
+  return tuple("<"_s, "<="_s, ">"_s, ">="_s, "=="_s, "!="_s)
+                ([=](auto ...tok) { return ((tok == x) || ...); });
+}
 }}
 
 
@@ -119,13 +128,7 @@ public:
     c9_assert(index() == indexof<U>());
     return (*this)[size_c<get(idx_tag<U>{})>];
   }
-  template<narrow<T_t> U> explicit operator tree_value<U>() {
-    c9_assert(index() == indexof<U>());
-    tree_value<U> r;
-    r.data = data;
-    ++r.data->count;
-    return r;
-  }
+  template<narrow<T_t> U> explicit operator tree_value<U>();
 
   auto operator->();
   T_t &operator*() requires requires { get(idx_tag<T_t>{}); } {
@@ -163,39 +166,42 @@ TREE_NARROW_DEF(decl, : statement_t { });
 TREE_DEF(block_decl, : std::vector<decl>, decl_t {  });
 
 
-TREE_NARROW_DEF(expression, : statement_t {});
-TREE_DEF(statement_expression, : expression_t { compound_statement stmts; });
-TREE_DEF(comma_expression, : expression_t { source_range locus; expression lhs, rhs; });
+
+TREE_NARROW_DEF(type_decl, : decl_t { });
 
 
-TREE_DEF(binary_expression, : expression_t {
+
+TREE_NARROW_DEF(expression, : statement_t { type_decl type; source_range loc; });
+TREE_NARROW_DEF(lvalue, : expression_t {});
+TREE_NARROW_DEF(rvalue, : expression_t {});
+TREE_DEF(statement_expression, : rvalue_t { compound_statement stmts; });
+TREE_DEF(comma_expression, : rvalue_t { expression lhs, rhs; });
+
+
+TREE_DEF(binary_expression, :rvalue_t {
   decltype(lex::binary_puncs([](auto ...x) { return variant_t<x...>{}; })) op;
   expression lhs, rhs;
-
-  source_range locus;
 });
-TREE_DEF(unary_expression, : expression_t {
+TREE_DEF(unary_expression, : rvalue_t {
   decltype(lex::unary_puncs([](auto ...x) { return variant_t<x...>{}; })) op;
   expression expr;
-
-  source_range locus;
 });
-TREE_DEF(assign_expression, : expression_t {
+TREE_DEF(assign_expression, : lvalue_t {
   decltype(lex::assign_puncs([](auto ...x) { return variant_t<x...>{}; })) op;
   expression lhs, rhs;
 });
-TREE_DEF(ternary_expression, : expression_t { expression cond, lhs, rhs; });
+TREE_DEF(ternary_expression, : rvalue_t { expression cond, lhs, rhs; });
 
 
-TREE_DEF(post_increment, : expression_t { expression expr; });
-TREE_DEF(post_decrement, : expression_t { expression expr; });
-TREE_DEF(access_member, : expression_t { expression expr; string member_name; });
-TREE_DEF(pointer_access_member, : expression_t { expression expr; string member_name; });
-TREE_DEF(function_call, : expression_t { expression calee; std::vector<expression> args; });
-TREE_DEF(subscript_expression, : expression_t { expression of; expression with; });
+TREE_DEF(postcrement_expression, : rvalue_t { lex::crement_tok op; expression expr; });
+TREE_DEF(addressof, : rvalue_t { lvalue of; });
+TREE_DEF(dereference, : lvalue_t { expression expr; });
+
+TREE_DEF(function_call, : rvalue_t { expression calee; std::vector<expression> args; });
+TREE_DEF(subscript_expression, : lvalue_t { expression of; expression with; });
 
 
-TREE_DEF(initializer_list, : expression_t {
+TREE_DEF(initializer_list, : rvalue_t {
   struct array_designator { expression index; };
   struct struct_designator { string field_name; };
 
@@ -207,15 +213,11 @@ TREE_DEF(initializer_list, : expression_t {
   std::vector<initializer> list;
 });
 
-
-
-TREE_NARROW_DEF(type_decl, : decl_t { });
-
 struct attribute {
   string name;
   std::vector<base> arguments;
 };
-TREE_DEF(type_name, : base_t {
+TREE_DEF(type_name, : type_decl_t {
   type_decl type;
   bool is_const {}, is_volatile {}, is_restrict {};
   std::vector<attribute> attrs;
@@ -224,19 +226,9 @@ struct declarator {
   string name;
   type_name type;
 };
-TREE_DEF(function_type, : type_decl_t {
-  std::vector<declarator> params;
-  type_name return_type;
-  std::vector<attribute> attrs;
 
-  bool is_variadic {};
-});
-TREE_DEF(function, : decl_t, expression_t {
-  string name;
-  function_type type;
-  compound_statement definition;
-});
-TREE_DEF(variable, : decl_t, expression_t {
+
+TREE_DEF(variable, : decl_t {
   string name;
   type_name type;
   expression definition;
@@ -244,8 +236,14 @@ TREE_DEF(variable, : decl_t, expression_t {
   bool is_global {};
   std::vector<attribute> attrs;
 });
+TREE_DEF(access_member, : lvalue_t { expression expr; variable member; });
+TREE_DEF(pointer_access_member, : lvalue_t { expression expr; variable member; });
 
-TREE_DEF(record_decl, : type_decl_t {
+TREE_DEF(decl_expression, : lvalue_t {
+  decl declref;
+});
+
+TREE_DEF(record_decl, : base_t {
   std::vector<variable> fields;
 
   variable find(string name);
@@ -258,12 +256,11 @@ TREE_DEF(typedef_decl, : type_decl_t {
   string name;
   type_name type;
 });
-TREE_DEF(pointer, : type_decl_t { type_name type; });
-TREE_DEF(array, : type_decl_t { type_name type; expression numof; });
 
-TREE_DEF(cast_expression, : expression_t { expression cast_from; type_name cast_to; });
+TREE_DEF(array, : type_decl_t { type_decl type; expression numof; });
 
-TREE_DEF(sizeof_expression, : expression_t {  variant<type_name, expression> arg; });
+TREE_DEF(cast_expression, : rvalue_t { expression cast_from; type_decl cast_to; });
+TREE_DEF(sizeof_expression, : rvalue_t {  variant<type_decl, expression> arg; });
 
 TREE_NARROW_DEF(builtin_type, : type_decl_t {});
 template<narrow<builtin_type_t> T> static inline tree_value<T> type_node;
@@ -271,42 +268,84 @@ template<narrow<builtin_type_t> T> static inline tree_value<T> type_node;
   TREE_DEF(name, a); \
   static auto &name##_node =   type_node<name##_t>;
 BUILTIN_TYPE_DEF(void_type, : builtin_type_t {});
-TREE_NARROW_DEF(integer_type, : builtin_type_t { size_t size; });
+TREE_NARROW_DEF(scalar_type, : builtin_type_t { constexpr bool is_scalar() { return true; } });
 
+TREE_DEF(pointer, : scalar_type_t { type_decl type; constexpr bool is_pointer(); });
+TREE_DEF(function_type, : type_decl_t {
+  std::vector<declarator> params;
+  type_name return_type;
+  std::vector<attribute> attrs;
 
-TREE_NARROW_DEF(unsigned_integral_type, : integer_type_t { void unsigned_tag(); });
-TREE_NARROW_DEF(signed_integral_type,   : integer_type_t { void signed_tag(); });
+  bool is_variadic {};
 
-BUILTIN_TYPE_DEF(char_type, : unsigned_integral_type_t {});
-BUILTIN_TYPE_DEF(unsigned_char_type, : unsigned_integral_type_t {});
-BUILTIN_TYPE_DEF(signed_char_type, : signed_integral_type_t {});
-BUILTIN_TYPE_DEF(short_type, : signed_integral_type_t {});
-BUILTIN_TYPE_DEF(unsigned_short_type, : unsigned_integral_type_t {});
-BUILTIN_TYPE_DEF(int_type, : signed_integral_type_t {});
-BUILTIN_TYPE_DEF(unsigned_int_type, : unsigned_integral_type_t {});
-BUILTIN_TYPE_DEF(long_type, : signed_integral_type_t {});
-BUILTIN_TYPE_DEF(unsigned_long_type, : unsigned_integral_type_t {});
-BUILTIN_TYPE_DEF(long_long_type, : signed_integral_type_t {});
-BUILTIN_TYPE_DEF(unsigned_long_long_type, : unsigned_integral_type_t {});
+  pointer ptr_type;
+});
+TREE_DEF(function, : decl_t {
+  string name;
+  function_type type;
+  compound_statement definition;
+});
+
+TREE_NARROW_DEF(arithmetic_type, : scalar_type_t { constexpr bool is_arithmetic() { return true; } });
+TREE_NARROW_DEF(integer_type, : arithmetic_type_t { size_t size;  constexpr bool is_integer() { return true; }; });
+
+TREE_NARROW_DEF(unsigned_integral_type, : integer_type_t { constexpr bool is_unsigned() { return true; } });
+TREE_NARROW_DEF(signed_integral_type,   : integer_type_t { constexpr bool is_signed()   { return true;} });
+
+BUILTIN_TYPE_DEF(char_type, : unsigned_integral_type_t {
+  constexpr static size_t rank = 0;
+});
+BUILTIN_TYPE_DEF(unsigned_char_type, : unsigned_integral_type_t {
+  constexpr static size_t rank = 0;
+});
+BUILTIN_TYPE_DEF(signed_char_type, : signed_integral_type_t {
+  constexpr static size_t rank = 0;
+});
+BUILTIN_TYPE_DEF(short_type, : signed_integral_type_t {
+  constexpr static size_t rank = 1;
+});
+BUILTIN_TYPE_DEF(unsigned_short_type, : unsigned_integral_type_t {
+  constexpr static size_t rank = 1;
+});
+BUILTIN_TYPE_DEF(int_type, : signed_integral_type_t {
+  constexpr static size_t rank = 2;
+});
+BUILTIN_TYPE_DEF(unsigned_int_type, : unsigned_integral_type_t {
+  constexpr static size_t rank = 2;
+});
+BUILTIN_TYPE_DEF(long_type, : signed_integral_type_t {
+  constexpr static size_t rank = 3;
+});
+BUILTIN_TYPE_DEF(unsigned_long_type, : unsigned_integral_type_t {
+  constexpr static size_t rank = 3;
+});
+BUILTIN_TYPE_DEF(long_long_type, : signed_integral_type_t {
+  constexpr static size_t rank = 4;
+});
+BUILTIN_TYPE_DEF(unsigned_long_long_type, : unsigned_integral_type_t {
+  constexpr static size_t rank = 4;
+});
 
 static integer_type ptrdiff_type_node;
 
-TREE_NARROW_DEF(floating_type, : builtin_type_t { size_t size; });
+TREE_NARROW_DEF(floating_type, : arithmetic_type_t { size_t size; });
 
 BUILTIN_TYPE_DEF(float_type,       : floating_type_t {});
 BUILTIN_TYPE_DEF(double_type,      : floating_type_t {});
 BUILTIN_TYPE_DEF(long_double_type, : floating_type_t {});
 
-TREE_DEF(int_cst_expression, : expression_t {
+TREE_DEF(int_cst_expression, : rvalue_t {
   uint64_t value;
-  integer_type type;
+  int_cst_expression_t(uint64_t value, integer_type type, location_t loc)
+    : value{value}, rvalue_t{{.type = type, .loc = loc}} {}
 });
-TREE_DEF(float_cst_expression, : expression_t {
+TREE_DEF(float_cst_expression, : rvalue_t {
   long double value;
-  floating_type type;
+  float_cst_expression_t(long double value, floating_type type, location_t loc)
+    : value{value}, rvalue_t{{.type = type, .loc = loc}} {}
 });
-TREE_DEF(compound_literal, : expression_t {
-  type_name type;
+TREE_DEF(compound_literal, : rvalue_t {
+  type_decl typec; // TODO REMOVE
   initializer_list init;
 });
 TREE_DEF(if_statement, : statement_t {
@@ -372,11 +411,21 @@ constexpr decltype(auto) visit(tree_value<T> x, tree_value<Y> y, auto &&f) {
 template<class T_t> auto tree_value<T_t>::operator->() {
   return (*this)([&](narrow<T_t> auto &tree) {return &static_cast<T_t &>(tree); });
 }
+
+template<class Q> constexpr auto tree_value<Q>::notypes() { return size_c<find()>;   }
+
+
 template<class T_t> template<class T> bool tree_value<T_t>::is_narrow() {
   return (*this)([]<class TQ>(TQ &) { return narrow<TQ, T>; });
 }
+template<class T_t> template<narrow<T_t> U> tree_value<T_t>::operator tree_value<U>() {
+  c9_assert(is_narrow<U>());
+  tree_value<U> r;
+  r.data = data;
+  ++r.data->count;
+  return r;
+}
 
-template<class Q> constexpr auto tree_value<Q>::notypes() { return size_c<find()>;   }
 
 inline variable record_decl_t::find(string name) {
   c9_assert(name.size());

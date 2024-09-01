@@ -21,6 +21,7 @@ struct driver {
   file_set files;
   option opt;
   diagnostic_engine diag{*this, loc_tab};
+  struct target &t;
 };
 
 

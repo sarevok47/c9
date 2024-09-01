@@ -3,18 +3,18 @@
 #include "tree.hpp"
 
 namespace c9 { namespace cfg { struct basic_block; } namespace simple {
-enum class rtype { i32, i64, f32, f64 };
+enum class rtype : uint8_t { none, ptr, i8, i16, i32, i64, i128, f32, f64, f128 };
 
 using int_cst   = __uint128_t;
 using float_cst = long double;
 
 
 struct temporary { size_t i; };
-using op = variant<int_cst, float_cst, tree::variable, temporary>;
+using op = variant<int_cst, float_cst, temporary>;
 
 
 template<auto str> struct binary{ rtype type; op src1, src2, dst; };
-template< auto str> struct unary { rtype type; op src1, dst; };
+template<auto str> struct unary { rtype type; op src1, dst; };
 
 
 #define BININSN(name, op) using name = binary<#op##_s>
@@ -45,14 +45,17 @@ UNARYINSN(neg, -);
 UNARYINSN(reverse, ~);
 
 struct assign { op src1, dst; };
+struct load   { tree::variable src1; op dst; };
+struct store  { op src1; tree::variable dst; };
 struct jump   { struct cfg::basic_block &target; };
 struct br     { op cond; cfg::basic_block &true_, &false_; };
+
 
 using insn = variant<add, sub, div, mod, mul, lshift, rshift, bit_or, bit_and, bit_xor,
                      cmp, neg_cmp, less, less_eq, greater, greater_eq,
 
                      bang, positive, neg, reverse,
-                     assign, jump, br>;
+                     assign, load, store, jump, br>;
 
 constexpr static int_cst true_{true};
 struct dumper {
@@ -91,6 +94,20 @@ private:
     dump(assign.dst);
     fprint(out, " = ");
     dump(assign.src1);
+    end();
+  }
+  void dump(load load) {
+    begin();
+    dump(load.dst);
+    fprint(out, " = ");
+    dump(load.src1);
+    end();
+  }
+  void dump(store store) {
+    begin();
+    dump(store.dst);
+    fprint(out, " = ");
+    dump(store.src1);
     end();
   }
   void dump(jump);

@@ -24,6 +24,8 @@
 
 #include  "parse.hpp"
 #include "cfg.hpp"
+
+#include "x86/target.hpp"
 void handler(int sig) {
   char pid_buf[30];
   sprintf(pid_buf, "%d", getpid());
@@ -64,7 +66,10 @@ int main(int argc, char **argv) {
   signal(SIGBUS, handler);   // install our handler
   signal(SIGABRT, handler);   // install our handler
   signal(SIGSEGV, handler);   // install our handler
-  driver d;
+
+
+x86_target t;
+  driver d{.t = t};
 
 
   auto &ff = d.files["../../tmp.cpp"];
@@ -90,7 +95,7 @@ BUILTIN_TYPE_DEF(void_type);
   BUILTIN_TYPE_DEF(double_type,      : floating_type_t {});
   BUILTIN_TYPE_DEF(long_double_type, : floating_type_t {});
 
-
+ptrdiff_type_node = unsigned_long_long_type_t{};
 	}
 
 
@@ -117,11 +122,11 @@ tree::default_ =  [] {
     while(parser.peek_token() == ";"_s)
 			parser.consume();
     if(parser.peek_token()) {
-		  auto tree = parser.declaration();
+		  auto tree = parser.declaration();/*
       tree(overload {
         [](auto &) {},
         [&](tree::function_t &fun) {
-          cfg::cfg cfg;
+          cfg::cfg cfg{d};
           cfg.construct(fun.definition);
           for(cfg::basic_block *bb = &cfg.entry; bb; bb = bb->step()) {
             fprint(stdout, "bb_{}: successors: ", bb->i);
@@ -138,11 +143,12 @@ tree::default_ =  [] {
             for(auto insn : bb->insns) simple::dumper{stdout}(insn);
           }
         }
-      });
+      });*/ tree::dumper{stderr}.dump(tree);
     } else break;
 		//tree::dumper{stderr}.dump(tree);
 
 	}
+
 
 
 

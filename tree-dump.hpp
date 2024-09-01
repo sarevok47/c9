@@ -56,6 +56,10 @@ private:
       }
     }
   }
+  void dump(decl_expression_t &expr, size_t ntab) {
+    dump_print(ntab, "decl-expression: ");
+    dump(expr.declref, ntab + 2);
+  }
   void dump(pointer_t &ptr, size_t ntab) {
     dump_print(ntab, "pointer: ");
     dump(ptr.type, ntab + 2);

@@ -28,6 +28,7 @@ private:
 
 
 class cfg {public:
+  driver &d;
   size_t nlabel = 1, ntmp{};
   basic_block entry, *last_bb = &entry;
 
@@ -39,12 +40,18 @@ class cfg {public:
     return *last_bb;
   }
 
-
-
   simple::op construct(tree::expression expr) {
     return expr(overload {
       [](auto &) -> simple::op { },
-      [&](tree::variable_t &) -> simple::op { return tree::variable(expr); },
+      [&](tree::decl_expression_t &expr) -> simple::op {
+        auto tmp = make_tmp();
+        if(is<tree::variable_t>(expr.declref))
+          last_bb->add_insn<simple::load>({
+            .src1 = tree::variable(expr.declref),
+            .dst = tmp
+          });
+        return tmp;
+      },
       [&](tree::unary_expression_t &unary) {
         return visit(unary.op, overload {
           [&](decltype("&"_s)) -> simple::op {

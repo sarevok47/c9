@@ -126,6 +126,15 @@ using location_t = size_t;
 struct source_range {
   location_t first;
   location_t last;
+
+  source_range() = default;
+  source_range(location_t first, location_t last) : first{first}, last{last} { c9_assert(last > first); }
+  source_range(location_t first) : first{first}, last{first + 1} { }
+
+  source_range operator+(source_range rhs) const {
+    c9_assert(rhs.last >= last && rhs.first >= first);
+    return {first, rhs.last};
+  }
 };
 
 struct location {

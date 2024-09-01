@@ -241,6 +241,7 @@ template<char ...c> struct string_seq {
   template<class T, T ...n>
   constexpr auto sub(sequence<T, n...>) { return string_seq<data[n]...>{}; }
   
+  constexpr static auto size() { return size_c<sizeof...(c)>; }
 
   constexpr auto operator()(auto f) requires requires { f(c...); } { return f(c...); }
    
@@ -369,6 +370,15 @@ public:
 };
 
 
-
+constexpr decltype(auto) prioritizied_overload(auto&& ...f) {
+  return [&](auto&& ...x) -> decltype(auto) {
+    return [&](this auto this_, auto &&headf, auto&& ...tailf) -> decltype(auto) {
+      if constexpr(requires {  headf((decltype(x)) x...); })
+        return headf((decltype(x)) x...);
+      else
+        return this_(tailf...);
+    }(f...);
+  };
+}
 
 }

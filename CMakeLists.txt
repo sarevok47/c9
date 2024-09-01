@@ -10,7 +10,7 @@ include_directories(c9
   PUBLIC
     ${CMAKE_CURRENT_LIST_DIR}
   )
-add_compile_options(-std=gnu++23 -g -O1 -O2 -funsigned-char -march=native -Wall -Wextra)
+add_compile_options(-std=gnu++23 -O1 -O2 -funsigned-char -march=native -Wall -Wextra)
 
 add_executable(c9 main.cpp token.cpp)
 

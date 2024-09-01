@@ -97,20 +97,13 @@ struct parser : sema::semantics, lex_spirit {
   }
 
   tree::expression primary_expression() {
+    location_t loc = peek_token().loc;
     return visit(peek_token(), overload {
       [&](sema::id &id) -> tree::expression {
-        location_t loc = peek_token().loc;
         consume();
-        if(id.node) {
-          if(is<tree::variable_t>(id.node->node->decl))
-            return tree::variable(id.node->node->decl);
-          if(is<tree::function_t>(id.node->node->decl))
-            return tree::function(id.node->node->decl);
-          else {
-            error(loc, {}, "'{}' is not a variable or function", id.name);
-            return {};
-          }
-        }
+        if(id.node)
+          return build_decl_expression(loc, id.node->node->decl);
+
         error(loc, {}, "use undeclared '{}'", id.name);
         return {};
       },
@@ -126,17 +119,17 @@ struct parser : sema::semantics, lex_spirit {
             } else {
               value = int_.value;
             }
-            return tree::int_cst_expression{{.value = value, .type = tree::int_type_node}};
+            return tree::int_cst_expression{{value,tree::int_type_node, loc}};
           },
           [&](lex::floating float_) -> tree::expression {
-            tree::float_cst_expression_t fexpr { .value = float_.value };
+            tree::floating_type type;
             visit(float_.suffix, overload {
-              [&](decltype("f"_s)) { fexpr.type = tree::float_type_node; },
-              [&](decltype(""_s))  { fexpr.type = tree::double_type_node; },
-              [&](decltype("l"_s)) { fexpr.type = tree::double_type_node; },
-              [&](decltype("L"_s)) { fexpr.type = tree::long_double_type_node; },
+              [&](decltype("f"_s)) { type = tree::float_type_node; },
+              [&](decltype(""_s))  { type = tree::double_type_node; },
+              [&](decltype("l"_s)) { type = tree::double_type_node; },
+              [&](decltype("L"_s)) { type = tree::long_double_type_node; },
             });
-            return fexpr;
+            return tree::float_cst_expression{{ float_.value, type, loc }};
           }
         });
       },
@@ -148,15 +141,16 @@ struct parser : sema::semantics, lex_spirit {
         lex::scan_impl(s, prefix, variant_types(prefix), 0_c, ""_s);
         ++s;
 
-        return tree::int_cst_expression{{ .value = *s, .type = tree::char_type_node}};
+        return tree::int_cst_expression{{*s, tree::char_type_node, loc}};
       },
       [&](decltype("("_s)) -> tree::expression {
         consume();
         // statement expression
         if(*this <= "{"_s) {
-          tree::statement_expression_t expr;
-          *this <= &parser::compound_statement % expr.stmts >> ")"_req;
-          return expr;
+          tree::compound_statement stmts;
+          *this <= &parser::compound_statement % stmts >> ")"_req;
+          // TODO Loc
+          return build_statement_expression(loc, stmts);
         }
         auto expr = expression();
         if(expr) {
@@ -174,7 +168,7 @@ struct parser : sema::semantics, lex_spirit {
               tree::sizeof_expression_t s;
               if(peek_token() == "("_s && starts_typename(peek_2nd_token())) {
                 consume();
-                s.arg = type_name();
+                s.arg = tree::type_decl(type_name());
                 *this <= ")"_req;
               } else
                 s.arg = unary_expression();
@@ -189,13 +183,14 @@ struct parser : sema::semantics, lex_spirit {
   }
   tree::expression postfix_expression() {
     tree::expression primary = primary_expression();
+    location_t loc = peek_token().loc;
     return visit(peek_token(), overload {
       [&](auto &) { return primary; },
       [&](decltype("["_s)) -> tree::expression {
         consume();
         tree::expression with = expression();
         *this <= "]"_req;
-        return tree::subscript_expression{{ .of = primary, .with = with }};
+        return build_subscript_expression({loc, peek_token().loc}, primary, with);
       },
       [&](decltype("("_s)) -> tree::expression {
         consume();
@@ -203,38 +198,37 @@ struct parser : sema::semantics, lex_spirit {
         if(peek_token() != ")"_s)
           do args.emplace_back(assignment_expression()); while(*this <= ","_s);
         *this <= ")"_req;
-        return tree::function_call{{ .calee = primary, .args = mov(args)}};
+        return build_function_call({loc, peek_token().loc}, primary, mov(args));
       },
       [&](decltype("."_s)) -> tree::expression {
         consume();
         auto tok = peek_token();
-        if(!require(type_c<sema::id>))
-          return tree::access_member{{ .expr = primary, .member_name = sema::id(tok).name }};
+        if(require(type_c<sema::id>))
+          return build_access_member_expression<tree::access_member>(primary, sema::id(tok).name);
 
         return {};
       },
       [&](decltype("->"_s)) -> tree::expression {
         consume();
         auto tok = peek_token();
-        if(!require(type_c<sema::id>))
-          return tree::pointer_access_member{{ .expr = primary, .member_name = sema::id(tok).name }};
+        if(require(type_c<sema::id>))
+          return build_access_member_expression<tree::pointer_access_member>(primary, sema::id(tok).name);
         return {};
       },
-      [&](decltype("++"_s)) -> tree::expression {
+      [&]<char ...c>(string_seq<c...> s) -> tree::expression requires (lex::is_crement(s)) {
         consume();
-        return tree::post_increment{{.expr = primary }};
-      },
-      [&](decltype("--"_s)) -> tree::expression {
-        consume();
-        return tree::post_decrement{{.expr = primary }};
+        return tree::postcrement_expression{{.op = s, .expr = primary}};
       }
     });
   }
   tree::expression unary_expression() {
     return visit(peek_token(), overload {
-      [&]<char ...c>(string_seq<c...> s) -> tree::expression  requires (lex::unary_puncs(contains(s))) {
+      [&]<char ...c>(string_seq<c...> s) -> tree::expression
+      requires (lex::unary_puncs(contains(s)) || lex::is_crement(s) || s == "*"_s || s == "&"_s) {
+        location_t loc = peek_token().loc;
         consume();
-        return tree::unary_expression{{ .op = s, .expr = unary_expression() }};
+        auto expr = unary_expression();
+        return build_unary_expression(source_range(loc) + expr->loc, s, expr);
       },
       [&](auto &) { return postfix_expression(); }
     });
@@ -245,7 +239,7 @@ struct parser : sema::semantics, lex_spirit {
       auto type = type_name();
       *this <= ")"_req;
       if(tree::initializer_list init; *this <= "{"_s >> &parser::initializer_list % init)
-        return tree::compound_literal{{.type = type, .init = init}};
+        return tree::compound_literal{{.typec = type, .init = init}};
 
       return tree::cast_expression{{ .cast_from = cast_expression(),  .cast_to = type, }};
     }
@@ -263,11 +257,7 @@ struct parser : sema::semantics, lex_spirit {
 
     size_t sp{};
     auto pop = [&]{
-      visit(stack[sp].op, [&](auto s) {
-        stack[sp - 1].expr = tree::binary_expression{{
-          .op = s, .lhs = stack[sp - 1].expr, .rhs = stack[sp].expr
-        }};
-      });
+      stack[sp - 1].expr = build_binary_expression(stack[sp].op, stack[sp - 1].expr, stack[sp].expr);
       --sp;
     };
     stack[0].expr = cast_expression();
@@ -309,7 +299,7 @@ struct parser : sema::semantics, lex_spirit {
               );
 
     if(lhs)
-      return tree::ternary_expression{{ .cond = cond, .lhs = lhs, .rhs = rhs  }};
+      return build_ternary_expression(cond, lhs, rhs);
     return cond;
   }
   tree::expression assignment_expression() {
@@ -318,7 +308,7 @@ struct parser : sema::semantics, lex_spirit {
       [](auto &&) {},
       [&]<char ...c>(string_seq<c...> s) requires (lex::is_assign(s)) {
         consume();
-        lhs = tree::assign_expression{{.op = s, .lhs = lhs, .rhs = assignment_expression()}};
+        lhs = build_assign_expression(s, lhs, assignment_expression());
       }
     });
     return lhs;
@@ -326,7 +316,12 @@ struct parser : sema::semantics, lex_spirit {
   tree::expression expression() {
     auto tree = assignment_expression();
     while(*this <= ","_s)
-     tree = tree::comma_expression{{.lhs = tree, .rhs = assignment_expression()}};
+      tree = [&]{
+        tree::comma_expression_t expr{.lhs = tree, .rhs = assignment_expression()};
+        expr.loc = expr.lhs->loc +expr. rhs->loc;
+        expr.type = expr.rhs->type;
+        return expr;
+      }();
     return tree;
   }
 
@@ -622,7 +617,9 @@ struct parser : sema::semantics, lex_spirit {
         tree::function_type_t fun{.return_type = base};
         function_parameters(fun);
         fun.return_type = direct_declarator(id, fun.return_type, attrs);
-        return tree::type_name{{.type = fun}};
+        tree::function_type ptr = mov(fun);
+        ptr->ptr_type = {{.type = ptr}};
+        return tree::type_name{{.type = ptr}};
       } else {
         tree::type_name stub = tree::type_name_t{};
         auto type = declarator(id, stub, attrs);
@@ -683,7 +680,7 @@ struct parser : sema::semantics, lex_spirit {
           })
       ))
         dchain = true;
-      if(dchain) *this <= "="_req;
+      if(dchain) *this <= "="_s;
       init.init = initializer();
 
       init_list.list.emplace_back(mov(init));
@@ -734,7 +731,7 @@ struct parser : sema::semantics, lex_spirit {
           scopes.push_scope<sema::fn_scope>();
           for(auto &dector : f.params)
              do_definition(sema::id{dector.name}, &sema::node_t::decl, tree::variable_t{
-               .name = dector.name, .type = dector_type
+               .name = dector.name, .type = dector.type
              });
 
           consume();

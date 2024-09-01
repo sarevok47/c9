@@ -126,6 +126,9 @@ public:
   bool operator==(auto x) {
     return index_ == indexof(x) && (decltype(x) &) *this == x;
   }
+  bool operator==(auto x) const {
+    return index_ == indexof(x) && (decltype(x) &) *this == x;
+  }
 
   template<class U> bool is() { return index() == indexof<U>(); }
 
