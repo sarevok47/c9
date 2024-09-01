@@ -233,7 +233,7 @@ public:
           }
         };
         auto f2 = [&](auto &&f2, macro_location ml) -> void {
-          for(location_t loc = ml.invoked.first; loc <= ml.invoked.last; ++loc, main = false)
+          for(location_t loc = ml.invoked.first; loc != ml.invoked.last; ++loc, main = false)
             visit(loc_tab[loc], overload {
               [&](location &loc) { f1(loc); },
               [&](macro_location &ml) {  f2(f2, ml); }

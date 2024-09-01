@@ -31,7 +31,7 @@ lex::token preprocessor::get_token_from_stream_1(auto &streams, auto& ...s) {
         if(bool(stream.macro->builtin)) [[unlikely]]
           res.loc = stream.invoker.loc;
         else {
-          source_range source_range{stream.invoker.loc, stream.invoker.loc};
+          source_range source_range{stream.invoker.loc, stream.invoker.loc + 1};
           if constexpr(requires { stream.invoker_range; })
             source_range = stream.invoker_range;
           res.loc = d.loc_tab[macro_location{stream.cur->loc, source_range}];
@@ -212,7 +212,7 @@ bool preprocessor::enter_macro_stream(lex::token &tok, lex::token invoker, macro
 
   c9_assert(args.size() == macro->noparams);
 
-  source_range sr{invoker.loc, tok.loc};
+  source_range sr{invoker.loc, tok.loc + 1};
 
   if(tokenbuf fnbuf; macro->is_funlike) {
     struct {
