@@ -188,6 +188,18 @@ public:
   }
 
 
+  void init_macro_from(sv str) {
+    file file {
+      str.begin(), str.end()
+    };
+    lex::lexer tmp{d, file, file.buf, file.limit};
+    auto prev = lexer;
+    lexer = &tmp;
+
+    while(get_token_nomacro(tok, {}, streams) == "#"_s)
+      macro_definition({.builtin = builtin_macro_type::predefined });
+  }
+
   const auto &get_lexer() { return lexer; }
 
 

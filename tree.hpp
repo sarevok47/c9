@@ -326,7 +326,6 @@ BUILTIN_TYPE_DEF(unsigned_long_long_type, : unsigned_integral_type_t {
   constexpr static size_t rank = 4;
 });
 
-static integer_type ptrdiff_type_node;
 
 TREE_NARROW_DEF(floating_type, : arithmetic_type_t { size_t size; });
 

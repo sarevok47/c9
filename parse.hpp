@@ -40,7 +40,7 @@ sv to_sv(storage_class_spec scs) {
 struct parser : sema::semantics, lex_spirit {
   driver &d;
 
-  parser(driver &d, auto&& ...x) : d{d}, lex_spirit{*this, (decltype(x)) x...} {}
+  parser(driver &d, auto&& ...x) : d{d}, sema::semantics{d}, lex_spirit{*this, (decltype(x)) x...} {}
 
   bool require(auto &&tok) {
     bool b;

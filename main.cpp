@@ -95,7 +95,7 @@ BUILTIN_TYPE_DEF(void_type);
   BUILTIN_TYPE_DEF(double_type,      : floating_type_t {});
   BUILTIN_TYPE_DEF(long_double_type, : floating_type_t {});
 
-ptrdiff_type_node = unsigned_long_long_type_t{};
+
 	}
 
 

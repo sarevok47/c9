@@ -3,7 +3,9 @@
 #include "tree.hpp"
 #include "tree-trait.hpp"
 #include "flat-map.hpp"
+#include "target.hpp"
 #include <stack>
+
 namespace c9 { namespace sema {
 class label_manager {
   flat_map<string, tree::label> labels;
@@ -72,6 +74,7 @@ public:
 
 
 struct semantics {
+  driver &d;
   scope_manager<compound_scope, fn_scope, control_scope, switch_scope> scopes;
 
   auto &global_scope() { return scopes.stack.front(); }
@@ -230,7 +233,7 @@ struct semantics {
       if(!overload {
         [&](lex::binary_tok op) {
           if(op == "-"_s && requires { l.is_pointer(); r.is_pointer(); })
-            type = ptrdiff_type_node;
+            type = d.t.ptrdiff_type_node;
           else if(lex::is_relational(op) || op == "||"_s || op == "&&"_s)
             type = int_type_node;
           return type;
@@ -384,7 +387,7 @@ struct semantics {
     return {};
   }
 
-  semantics() { scopes.push_scope(compound_scope{});  }
+  semantics(driver &d) : d{d} { scopes.push_scope(compound_scope{});  }
 };
 
 }}

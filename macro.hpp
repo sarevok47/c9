@@ -3,6 +3,7 @@
 #include "lex.hpp"
 #include "pp.hpp"
 #include "token.hpp"
+#include "target.hpp"
 #include <memory>
 #include <ranges>
 
@@ -210,6 +211,7 @@ bool preprocessor::enter_macro_stream(lex::token &tok, lex::token invoker, macro
     return false;
 
   c9_assert(args.size() == macro->noparams);
+
   source_range sr{invoker.loc, tok.loc};
 
   if(tokenbuf fnbuf; macro->is_funlike) {
@@ -471,17 +473,6 @@ void preprocessor::init_builtin_macro() {
             #define __C99_MACRO_WITH_VA_ARGS 1
             #define __ELF__ 1
             #define __LP64__ 1
-            #define __SIZEOF_DOUBLE__ 8
-            #define __SIZEOF_FLOAT__ 4
-            #define __SIZEOF_INT__ 4
-            #define __SIZEOF_LONG_DOUBLE__ 8
-            #define __SIZEOF_LONG_LONG__ 8
-            #define __SIZEOF_LONG__ 8
-            #define __SIZEOF_POINTER__ 8
-            #define __SIZEOF_PTRDIFF_T__ 8
-            #define __SIZEOF_SHORT__ 2
-            #define __SIZEOF_SIZE_T__ 8
-            #define __SIZE_TYPE__ unsigned long
             #define __STDC_HOSTED__ 1
             #define __STDC_NO_COMPLEX__ 1
             #define __STDC_UTF_16__ 1
@@ -492,8 +483,6 @@ void preprocessor::init_builtin_macro() {
             #define __GNUC_MINOR__ 2
             #define __USER_LABEL_PREFIX__
             #define __alignof__ _Alignof
-            #define __amd64 1
-            #define __amd64__ 1
             #define __c9__ 1
             #define __const__ const
             #define __gnu_linux__ 1
@@ -505,28 +494,18 @@ void preprocessor::init_builtin_macro() {
             #define __unix 1
             #define __unix__ 1
             #define __volatile__ volatile
-            #define __x86_64 1
-            #define __x86_64__ 1
             #define linux 1
             #define unix 1
 
-            #define __CHAR_BIT__ 8
 #define __builtin_va_list int
 #define __asm__(...)
             #define __has_feature(x) 0  // Compatibility with non-clang compilers.
             #define __has_attribute(x) 1
             #define __has_cpp_attribute(x) 1
     )";
-    file file {
-      str.begin(), str.end()
-    };
-    lex::lexer tmp{d, file, file.buf, file.limit};
-    auto prev = lexer;
-    lexer = &tmp;
 
-
-    while(get_token_nomacro(tok, {}, streams) == "#"_s)
-      macro_definition({.builtin = builtin_macro_type::predefined });
+  init_macro_from(str);
+  init_macro_from(d.t.predefined_macro);
 }
 
 }}
