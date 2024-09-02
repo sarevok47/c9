@@ -380,7 +380,7 @@ struct semantics {
       return {};
     }
 
-    if(tree::variable field = tree::structural_decl(type)->def->find(name))
+    if(tree::variable field = tree::structural_decl(type)->definition->find(name))
       return {{.expr = expr, .member = field}};
 
     // TODO ERR message

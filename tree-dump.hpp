@@ -41,7 +41,7 @@ private:
   }
   template<derived_from<structural_decl_t> T> void dump(T &structural, size_t ntab) {
     dump_print(ntab, "{}: {}", __is_same(T, struct_decl_t) ? "struct" : "union", structural.name);
-    dump(structural.def, ntab + 2);
+    dump(structural.definition, ntab + 2);
   }
   void dump(function_type_t fun_type, size_t ntab) {
     dump_print(ntab, "function-type: ");

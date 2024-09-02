@@ -248,7 +248,7 @@ TREE_DEF(record_decl, : base_t {
 
   variable find(string name);
 });
-TREE_NARROW_DEF(structural_decl, : type_decl_t { string name; record_decl def; } );
+TREE_NARROW_DEF(structural_decl, : type_decl_t { string name; record_decl definition; } );
 TREE_DEF(struct_decl, :  structural_decl_t { });
 TREE_DEF(union_decl,  :  structural_decl_t { });
 

@@ -451,12 +451,12 @@ struct parser : sema::semantics, lex_spirit {
       }
       *this <= "}"_req;
       if(name.name.size()
-        && ((is_struct && node.struct_decl->def) || (!is_struct && node.union_decl->def))
+        && ((is_struct && node.struct_decl->definition) || (!is_struct && node.union_decl->definition))
       )
         error(start_loc, {}, "redeclaration of {} '{}'", is_struct ? "struct" : "union", name.name);
       else {
-        if(is_struct) node.struct_decl->def = s;
-        else          node.union_decl->def = s;
+        if(is_struct) node.struct_decl->definition = s;
+        else          node.union_decl->definition = s;
       }
     }
 

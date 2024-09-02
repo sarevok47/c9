@@ -31,7 +31,7 @@ type_decl strip_type(auto type) {
 }
 bool is_incomplete_type(type_decl type) {
   return strip_type(type)(overload {
-    [](narrow<structural_decl_t> auto &decl) -> bool { return !decl.def; },
+    [](narrow<structural_decl_t> auto &decl) -> bool { return !decl.definition; },
     [](auto &) { return false; }
   });
 }
