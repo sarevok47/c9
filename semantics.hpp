@@ -83,17 +83,17 @@ struct semantics {
     size_t scop = scopes.size() - 1;
     for(auto &scope : scopes | rv::reverse) {
       if(auto p = scope.find(name); p != scope.end())
-        return { .name = name, .node = node_ref{ scop, &p->/*value*/second } };
+        return {  name, scop, &p->/*value*/second };
 
       --scop;
     }
 
-    return { .name = name };
+    return { name, scopes.size() - 1 };
   }
 
   node_t &get_or_def_node(id id) {
-    if(id.node && id.node->level == scopes.stack.size() - 1)
-      return *id.node->node;
+    if(id.node && id.level == scopes.stack.size() - 1)
+      return *id.node;
     return scopes.stack.back()[id.name];
   }
 

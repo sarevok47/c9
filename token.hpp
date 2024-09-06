@@ -15,13 +15,11 @@ namespace c9 {
       tree::union_decl union_decl;
     };
 
-    struct node_ref {
-      size_t level;
-      node_t *node;
-    };
+
     struct id {
       string name;
-      opt<node_ref> node;
+      size_t level;
+      node_t *node{};
     };
 
   }

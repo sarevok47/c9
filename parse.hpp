@@ -72,7 +72,10 @@ struct parser : sema::semantics, lex_spirit {
   bool starts_typename(lex::token tok) {
     return visit(tok, overload {
       [](auto &) { return false; },
-      [](sema::id &id) { return id.node && is<tree::typedef_decl_t>(id.node->node->decl); },
+      [&](sema::id &id) {
+        if(!id.node || !id.node->decl) id = name_lookup(id.name);
+        return id.node && is<tree::typedef_decl_t>(id.node->decl);
+      },
       [](keyword kw) {
         switch(kw) {
           case keyword::void_:
@@ -101,8 +104,9 @@ struct parser : sema::semantics, lex_spirit {
     return visit(peek_token(), overload {
       [&](sema::id &id) -> tree::expression {
         consume();
-        if(id.node)
-          return build_decl_expression(loc, id.node->node->decl);
+        if(!id.node || !id.node->decl) id = name_lookup(id.name);
+        if(id.node->decl)
+          return build_decl_expression(loc, id.node->decl);
 
         error(loc, {}, "use undeclared '{}'", id.name);
         return {};
@@ -466,8 +470,9 @@ struct parser : sema::semantics, lex_spirit {
   bool typedef_spec(tree::type_name &type) {
     if(is<sema::id>(peek_token())) {
       sema::id &id = peek_token();
-      if(id.node && is<tree::typedef_decl_t>(id.node->node->decl)) {
-        type = ((tree::typedef_decl_t &) id.node->node->decl).type;
+      if(!id.node || !id.node->decl) id = name_lookup(id.name);
+      if(id.node && is<tree::typedef_decl_t>(id.node->decl)) {
+        type = ((tree::typedef_decl_t &) id.node->decl).type;
         consume();
         return true;
       }
@@ -708,7 +713,7 @@ struct parser : sema::semantics, lex_spirit {
           decl = tree::typedef_decl{{ .name = dector_name.name, .type = type}};
           break;
         case storage_class_spec::extern_:
-          if(dector_name.node && dector_name.node->node->decl) return;
+          if(dector_name.node && dector_name.node->decl) return;
         default: decl = tree;
       }
       if(dector_name.name.size())
@@ -725,24 +730,21 @@ struct parser : sema::semantics, lex_spirit {
           .type =  tree::function_type(dector_type->type)
         }};
         declarate(fun, dector_type);
-        bool body = !tail && peek_token() == "{"_s;
-
-        if(body) {
+        bool body = !tail && *this <= ("{"_s, [&] {
           scopes.push_scope<sema::fn_scope>();
           for(auto &dector : f.params)
-             do_definition(sema::id{dector.name}, &sema::node_t::decl, tree::variable_t{
-               .name = dector.name, .type = dector.type
-             });
+            do_definition(sema::id{dector.name}, &sema::node_t::decl, tree::variable_t{
+              .name = dector.name, .type = dector.type
+            });
 
-          consume();
+
           tree::compound_statement_t compound;
           while(peek_token() && peek_token() != "}"_s)
             compound.emplace_back(block_item());
           scopes.pop_scope();
           *this <= "}"_req;
           fun->definition = compound;
-        }
-
+        });
         if(!tail && !body && *this <= ","_s) {
           tree::block_decl_t block{{decl}};
           do block.emplace_back(init_decl(dss, true)); while(*this <= ","_s);
