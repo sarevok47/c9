@@ -294,36 +294,47 @@ TREE_NARROW_DEF(unsigned_integral_type, : integer_type_t { constexpr bool is_uns
 TREE_NARROW_DEF(signed_integral_type,   : integer_type_t { constexpr bool is_signed()   { return true;} });
 
 BUILTIN_TYPE_DEF(char_type, : unsigned_integral_type_t {
+  constexpr static sv name = "unsigned char";
   constexpr static size_t rank = 0;
 });
 BUILTIN_TYPE_DEF(unsigned_char_type, : unsigned_integral_type_t {
+  constexpr static sv name = "unsigned char";
   constexpr static size_t rank = 0;
 });
 BUILTIN_TYPE_DEF(signed_char_type, : signed_integral_type_t {
+  constexpr static sv name = "char";
   constexpr static size_t rank = 0;
 });
 BUILTIN_TYPE_DEF(short_type, : signed_integral_type_t {
+  constexpr static sv name = "short";
   constexpr static size_t rank = 1;
 });
 BUILTIN_TYPE_DEF(unsigned_short_type, : unsigned_integral_type_t {
+  constexpr static sv name = "unsigned short";
   constexpr static size_t rank = 1;
 });
 BUILTIN_TYPE_DEF(int_type, : signed_integral_type_t {
+  constexpr static sv name = "int";
   constexpr static size_t rank = 2;
 });
 BUILTIN_TYPE_DEF(unsigned_int_type, : unsigned_integral_type_t {
+  constexpr static sv name = "unsigned int";
   constexpr static size_t rank = 2;
 });
 BUILTIN_TYPE_DEF(long_type, : signed_integral_type_t {
+  constexpr static sv name = "long int";
   constexpr static size_t rank = 3;
 });
 BUILTIN_TYPE_DEF(unsigned_long_type, : unsigned_integral_type_t {
+  constexpr static sv name = "unsigned long int";
   constexpr static size_t rank = 3;
 });
 BUILTIN_TYPE_DEF(long_long_type, : signed_integral_type_t {
+  constexpr static sv name = "long long int";
   constexpr static size_t rank = 4;
 });
 BUILTIN_TYPE_DEF(unsigned_long_long_type, : unsigned_integral_type_t {
+  constexpr static sv name = "unsigned long int";
   constexpr static size_t rank = 4;
 });
 

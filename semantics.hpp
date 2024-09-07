@@ -86,6 +86,8 @@ struct semantics {
   driver &d;
   scope_manager<compound_scope, fn_scope, control_scope, switch_scope> scopes;
 
+
+
   auto &global_scope() { return scopes.stack.front(); }
   id name_lookup(string name) {
     auto &scopes = this->scopes.stack;
@@ -109,7 +111,7 @@ struct semantics {
   tree::subscript_expression build_subscript_expression(source_range loc, tree::expression of, tree::expression with) {
     using namespace tree;
     if(!strip_type(with->type)([]<class T>(T &) { return narrow<T, integer_type_t>; })) {
-      // TODO ERR message
+      d.diag(loc, "error"_s, "index in array subscript must be an integer");
       return {};
     }
 
@@ -120,8 +122,8 @@ struct semantics {
         r.loc = loc;
         return r;
       },
-      [](auto &) -> subscript_expression {
-        // TODO ERR message
+      [&](auto &) -> subscript_expression {
+        d.diag(loc, "error"_s, "invalid type to subscript");
         return {};
       }
     });
@@ -130,18 +132,18 @@ struct semantics {
     return strip_type(calee->type)(overload {
       [&](tree::pointer_t &ptr) ->  tree::function_call {
         auto type = strip_type(ptr.type);
-        if(!type.is<tree::function_type_t>()) {c9_assert(0);
-          // TODO ERR message
+        if(!type.is<tree::function_type_t>()) {
+          d.diag(loc, "error"_s, "calee cannot be a pointer to non function type");
           return {};
         }
 
         auto &fun = (tree::function_type_t &) type;
-        if(args.size() < fun.params.size()) {c9_assert(0);
-          // TODO ERR Message
+        if(args.size() < fun.params.size()) {
+          d.diag(loc, "error"_s, "too few arguments to call function");
           return {};
         }
-        if(args.size() > fun.params.size() && !fun.is_variadic) {c9_assert(0);
-          // TODO ERR Message
+        if(args.size() > fun.params.size() && !fun.is_variadic) {
+          d.diag(loc, "error"_s, "too few arguments to call function");
           return {};
         }
 
@@ -150,7 +152,7 @@ struct semantics {
           if(!visit(strip_type(args[i]->type), paramtype, [&](auto &l, auto &r) {
             return is_compatible(lex::assign_tok{"="_s}, l, r);
           })) {
-            // TODO ERR message
+            d.diag(args[i]->loc, "error"_s, "incompatible types of argument and parameter ('{}')", i);
             return {};
           }
           args[i] = maybe_build_cast_expression(args[i]->loc, paramtype, args[i]);
@@ -160,8 +162,8 @@ struct semantics {
         call.type = fun.return_type;
         return call;
       },
-      [](auto &) ->  tree::function_call {
-        c9_assert(0);
+      [&](auto &) ->  tree::function_call {
+        d.diag(loc, "error"_s, "calee in functiona call must be a function");
         return {};
       }
     });
@@ -176,7 +178,7 @@ struct semantics {
         r = tree::decl_expression{{{{.type = v.type, .loc = ref_loc}}, decl}};
       },
       [&](auto &) {
-        // TODO ERR message
+        d.diag(ref_loc, "error"_s, "typedef can't appear in expression");
       }
     });
     return r;
@@ -196,17 +198,17 @@ struct semantics {
         cast.type = to;
         return cast;
       },
-      [&](auto &, void_type_t) -> expression{
-        // TODO ERR message
+      [&](auto &, void_type_t) -> expression {
+        d.diag(loc, "error"_s, "void typed value appears in cast expression");
         return {};
       },
       [&](union_decl_t &, auto &) -> expression {
+
         return {};
       },
-      [](auto &, auto &) -> expression {
-        // TODO ERR message
+      [&](auto &, auto &) -> expression {
+        d.diag(loc, "error"_s, "incompatible types to cast expression");
         return {};
-
       }
     ));
   }
@@ -216,7 +218,7 @@ struct semantics {
     type_decl type = void_type_node;
     if(stmts->size())
       stmts->back()(overload {
-        [&](narrow<expression_t> auto &expr) { type = expr.type;      },
+        [&](narrow<expression_t> auto &expr) { type = expr.type;  },
         [&](auto &) {}
       });
     statement_expression_t t{.stmts = stmts};
@@ -228,13 +230,8 @@ struct semantics {
   tree::type_decl get_common_type(auto op, source_range loc, tree::type_decl lhstype, tree::type_decl rhstype) {
     using namespace tree;
     return visit(lhstype, rhstype, [&]<class L, class R>(L &l, R &r) -> type_decl {
-      if(__is_same(L, void_type_t) || __is_same(R, void_type_t)) {
-        //TODO ERR message
-        return {};
-      }
       if(!is_compatible(op, l, r)) {
-        //TODO ERR message;
-        c9_assert(0);
+        d.diag(loc, "error"_s, "incompatible types");
         return {};
       }
 
@@ -274,8 +271,7 @@ struct semantics {
     using namespace tree;
     lvalue assign_to;
     if(!lhs.is_narrow<lvalue_t>()) {
-      // TODO ERR message
-      c9_assert(0);
+      d.diag(lhs->loc, "error"_s, "left operand of assignment expression must be lvalue");
       return {};
     }
     assign_to = (lvalue) lhs;
@@ -290,7 +286,7 @@ struct semantics {
 
   tree::ternary_expression build_ternary_expression(tree::expression cond, tree::expression lhs, tree::expression rhs) {
     if(!cond.is_narrow<tree::scalar_type_t>()) {
-      // TODO ERR message
+      d.diag(cond->loc + rhs->loc, "error"_s, "operand of ternary expression must be scalar type");
       return {};
     }
     tree::ternary_expression_t ternary{.cond = cond, .lhs = lhs, .rhs = rhs};
@@ -311,7 +307,7 @@ struct semantics {
       },
       [&](decltype("&"_s))  {
         if(!expr.is_narrow<tree::lvalue_t>()) {
-          // TODO ERR message
+          d.diag(loc, "error"_s, "addressof expression requires lvalue");
           return;
         }
         tree::addressof_t addr{.of = (tree::lvalue) expr};
@@ -345,19 +341,19 @@ struct semantics {
 
         if(s == "+"_s || s == "-"_s) {
           if(!expr->type.is_narrow<tree::arithmetic_type_t>()) {
-            //TODO ERR message
+            d.diag(loc, "error"_s, "operand of unary '{}' must be arithmetic type", s.c_str());
             return;
           }
           unary.type = expr->type = promote(expr->type);
         } else if(s == "~"_s) {
           if(!expr->type.is_narrow<tree::integer_type_t>()) {
-            //TODO ERR message
+            d.diag(loc, "error"_s, "operand of unary '{}' must be integer type", s.c_str());
             return;
           }
           unary.type = expr->type = promote(expr->type);
         } else if(s == "!"_s) {
           if(!expr->type.is_narrow<tree::scalar_type_t>()) {
-            //TODO ERR message
+            d.diag(loc, "error"_s, "operand of unary '{}' must be scalar type", s.c_str());
             return;
           }
           unary.type = tree::int_type_node;
@@ -374,95 +370,102 @@ struct semantics {
 
     if(__is_same(T, tree::pointer_access_member)) {
       if(!type.is<tree::pointer_t>()) {
-        // TODO ERR message
+        d.diag(expr->loc, "error"_s, "left operand of '->' must be a pointer");
         return {};
       }
       type = tree::pointer(type)->type;
     }
 
     if(!type.is_narrow<tree::structural_decl_t>()) {
-      // TODO ERR message
+      d.diag(expr->loc, "error"_s, "cannot access member in not structural types");
       return {};
     }
     if(is_incomplete_type(type)) {
-      // TODO ERR message
+      d.diag(expr->loc, "error"_s, "cannot access incomplete type");
       return {};
     }
 
     if(tree::variable field = tree::structural_decl(type)->definition->find(name))
       return {{.expr = expr, .member = field}};
 
-    // TODO ERR message
+    d.diag(expr->loc, "error"_s, "no matching '{}' member", name);
     return {};
   }
 
 
+  template<class ...T> void redecl_error(rich_location rl, string name, tree::decl &decl, std::format_string<T...> fmt, T&& ...args) {
+    d.diag(rl, "error"_s, "redeclaration of {} '{}' {}",
+           decl(overload {
+             [](tree::function_t &)     { return "function"; },
+             [](tree::typedef_decl_t &) { return "typedef";  },
+             [](auto &)                 { return "variable"; }
+           }),
+           name, std::format(fmt, (decltype(args)) args...));
+  }
 
-  tree::decl build_typedef_decl(id id, tree::decl &node, tree::type_name type) {
+  tree::decl build_typedef_decl(rich_location rl, id id, tree::decl &node, tree::type_name type) {
     if(node) {
-      // TODO ERR message
-      c9_assert(0);
+      redecl_error(rl, id.name, node, "");
       return {};
     }
     return node = tree::typedef_decl{{.name = id.name, .type = type}};
   }
-  tree::decl build_local_extern_decl(id id, tree::decl &node, tree::type_name type) {
+  tree::decl build_local_extern_decl(rich_location rl, id id, tree::decl &node, tree::type_name type) {
     return node(overload {
       [&](auto &decl) -> tree::decl requires requires { decl.scs; } {
         if(decl.type != type) {
-          // TODO ERR Message
+          redecl_error(rl, id.name, node, "with different type");
           return {};
         }
         if(decl.scs == "extern"_s)
-          // ok
           return node;
 
-        // TODO ERR redeclarqation
+
+        redecl_error(rl, id.name, node, "with different storage class specifier ('{}' and 'extern')", sv_variant(decl.scs));
         return node;;
       },
       [&](tree::empty_node_t) {
-        return node = build_decl({.name = id.name, .level = 0}, type, "extern"_s, true);
+        return node = build_decl(rl, {.name = id.name, .level = 0}, type, "extern"_s, true);
       },
-      [](auto &) -> tree::decl {
-        // TODO ERR message
-        c9_assert(0);
+      [&](auto &) -> tree::decl {
+        redecl_error(rl, id.name, node, "");
+        return {};
       }
     });
   }
-  tree::decl build_decl(id id, tree::type_name type, storage_class_spec scs, bool implicit = false) {
+  tree::decl build_decl(rich_location rl, id id, tree::type_name type, storage_class_spec scs, bool implicit = false) {
     if(!id.node || !id.node->decl)
       id.node = &scopes.stack[id.level]->operator[](id.name);
     auto &decl = id.node->decl;
 
     if(scs == "typedef"_s)
-      return build_typedef_decl(id, decl, type);
+      return build_typedef_decl(rl, id, decl, type);
 
     auto funtype = (tree::function_type) type->type;
     if((scs == "extern"_s || funtype) && !id.is_global_scope())
-      return build_local_extern_decl(id, decl, type);
+      return build_local_extern_decl(rl, id, decl, type);
 
     tree::type_decl dtype;
 
-    auto scs_assign = []<class T>(T &&to, auto from) -> __remove_cvref(T) {
+    auto scs_assign = [&]<class T>(T &&to, auto from) -> __remove_cvref(T) {
       return visit(from, [&](auto from) {
-        if constexpr(!requires { to = from;  }) {
-          // TODO err message
-        } else
+        if constexpr(!requires { to = from;  })
+          d.diag(rl, "error"_s, "function cannot take '{}' storage class", from.c_str());
+        else
           to = from;
         return to;
       });
     };
     if(decl) {
       if(dtype = get_decl_type(decl); decl && (dtype.is<tree::typedef_decl_t>() || dtype != type->type)) {
-        // TODO ERR message
-        c9_assert(0);
+        redecl_error(rl, id.name, decl, "");
         return {};
       }
 
       return decl([&](auto &tree) -> tree::decl {
         if constexpr(requires { tree.scs; }) {
           if(tree.scs == "extern"_s && (scs != ""_s && scs != "extern"_s)) {
-            // TODO ERR message
+            redecl_error(rl, id.name, decl, "with different storage class specifier ('{}' and '{}')", sv_variant(tree.scs), sv_variant(scs));
             return {};
           }
           if(scs != "extern"_s) {

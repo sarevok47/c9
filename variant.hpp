@@ -231,6 +231,10 @@ template<class ...T> constexpr auto variant_types(variant<T...> v) {
 }
 
 template<auto ...x> using variant_t = variant<decltype(x)...>;
+template<class ...T> constexpr sv sv_variant(variant<T...> v) {
+   return visit(v, [](auto str) -> sv { return str.c_str(); });
+}
+
 
 }
 #undef __is_trivially_constructible(T, T) std::is_trivially_constructible_v<T,T>

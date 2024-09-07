@@ -690,6 +690,7 @@ struct parser : sema::semantics, lex_spirit {
   tree::decl init_decl(decl_specifier_seq &dss, bool tail = false) {
     sema::id dector_name;
     auto dector_type = declarator(dector_name, dss.type, dss.attrs);
+    location_t loc = peek_token().loc;
     *this <= &parser::attribute_list / dss.attrs;
     tree::decl decl;
 
@@ -700,7 +701,7 @@ struct parser : sema::semantics, lex_spirit {
 
     dector_name.node = &get_or_def_node(dector_name);
     dector_name.level = scopes.stack.size() - 1;
-    decl = build_decl(dector_name, dector_type, dss.storage_class);
+    decl = build_decl({loc}, dector_name, dector_type, dss.storage_class);
     bool block_decl_accept = decl(overload {
       [&](tree::function_t &fun) {
         bool body = !tail && *this <= ("{"_s, [&] {

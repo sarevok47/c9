@@ -155,7 +155,10 @@ struct line_map {
 };
 struct rich_location {
   location_t main_loc;
-  std::initializer_list<location_t> locs;
+  variant<
+    std::initializer_list<location_t>,
+    source_range
+  > locs;
 };
 
 template<class ...T> void hdr_print(FILE *out, line_map hdr, message_type mtype, std::format_string<T...> fmt, T&& ...args) {
@@ -199,7 +202,13 @@ struct diagnostic_engine {
     rich_location rl{loc};
     diagnostic_impl(stderr, rl, type, fmt, (decltype(args)) args...);
   }
-  template<class ...T> void operator()(source_range loc, message_type type, std::format_string<T...> fmt, T&& ...args) {}
+  template<class ...T> void operator()(source_range loc, message_type type, std::format_string<T...> fmt, T&& ...args) {
+    rich_location rl{loc.first, loc};
+    diagnostic_impl(stderr, rl, type, fmt, (decltype(args)) args...);
+  }
+  template<class ...T> void operator()(rich_location rl, message_type type, std::format_string<T...> fmt, T&& ...args) {
+    diagnostic_impl(stderr, rl, type, fmt, (decltype(args)) args...);
+  }
 private:
   void line_render(FILE *out, size_t line_start, size_t line_finish, auto &&underline) {
     for(; line_start <= line_finish; ++line_start) {
@@ -213,14 +222,32 @@ private:
     }
   }
 
+  void loc_render(FILE *out, rich_location loc) {
+    diagnostic_renderer(out, loc);
+
+    visit(loc_tab[loc.main_loc], overload {
+      [](location) {},
+      [&](macro_location ml) {
+        (*this)(ml.in_definition, "note"_s, "in definition of macro");
+      }
+    });
+  }
+
 public:
   void diagnostic_renderer(FILE *out, rich_location loc) {
-    auto max_p = std::ranges::max_element(loc.locs),
-         min_p = std::ranges::min_element(loc.locs);
+    auto [min, max] = visit(loc.locs, overload {
+      [&](std::ranges::range auto &&r) {
+        auto max_p = std::ranges::max_element(r);
+        auto min_p = std::ranges::min_element(r);
 
-
-    location_t max = !loc.locs.size() ? loc.main_loc : std::max(*max_p, loc.main_loc),
-               min = !loc.locs.size() ? loc.main_loc : std::min(*min_p, loc.main_loc);
+        location_t max = !r.size() ? loc.main_loc : std::max(*max_p, loc.main_loc),
+                   min = !r.size() ? loc.main_loc : std::min(*min_p, loc.main_loc);
+        return std::pair{min, max};
+      },
+      [&](source_range sr) {
+        return std::pair{std::min(sr.first, loc.main_loc), std::max(sr.first, loc.main_loc)};
+      }
+    });
 
 
     auto underline = [&](size_t cur_line, size_t line_len) {
@@ -248,8 +275,17 @@ public:
         });
       };
       std::fill_n(buf, line_len, ' ');
-      for(location_t l : loc.locs)
-        caret(l);
+
+      visit(loc.locs, overload {
+        [&](std::ranges::range auto &&r) {
+          for(location_t l : r)
+            caret(l);
+        },
+        [&](source_range sr) {
+          for(location_t l = sr.first; l != sr.last; ++l)
+            caret(l);
+        }
+      });
       caret(loc.main_loc, true);
       print_with_colon("", out, "{}", sv{buf, line_len});
     };
@@ -260,14 +296,7 @@ public:
   template<class ...T>
   void diagnostic_impl(FILE *out, rich_location loc, message_type mtype, std::format_string<T...> fmt, T&& ...args) {
     hdr_print(out, loc_tab.line_maps[loc_tab.get_map_tag(loc.main_loc)], mtype, fmt, (decltype(args)) args...);
-    diagnostic_renderer(out, loc);
-
-    visit(loc_tab[loc.main_loc], overload {
-      [](location) {},
-      [&](macro_location ml) {
-        (*this)(ml.in_definition, "note"_s, "in definition of macro");
-      }
-    });
+    loc_render(out, loc);
   }
 };
 
