@@ -130,7 +130,7 @@ struct semantics {
     return strip_type(calee->type)(overload {
       [&](tree::pointer_t &ptr) ->  tree::function_call {
         auto type = strip_type(ptr.type);
-        if(!is<tree::function_type_t>(type)) {c9_assert(0);
+        if(!type.is<tree::function_type_t>()) {c9_assert(0);
           // TODO ERR message
           return {};
         }
@@ -373,7 +373,7 @@ struct semantics {
     auto type = strip_type(expr->type);
 
     if(__is_same(T, tree::pointer_access_member)) {
-      if(!is<tree::pointer_t>(type)) {
+      if(!type.is<tree::pointer_t>()) {
         // TODO ERR message
         return {};
       }
@@ -453,7 +453,7 @@ struct semantics {
       });
     };
     if(decl) {
-      if(dtype = get_decl_type(decl); decl && (is<tree::typedef_decl_t>(dtype) || dtype != type->type)) {
+      if(dtype = get_decl_type(decl); decl && (dtype.is<tree::typedef_decl_t>() || dtype != type->type)) {
         // TODO ERR message
         c9_assert(0);
         return {};

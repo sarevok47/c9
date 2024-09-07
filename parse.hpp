@@ -60,7 +60,7 @@ struct parser : sema::semantics, lex_spirit {
       [](auto &) { return false; },
       [&](sema::id &id) {
         if(!id.node || !id.node->decl) id = name_lookup(id.name);
-        return id.node && is<tree::typedef_decl_t>(id.node->decl);
+        return id.node && id.node->decl.is<tree::typedef_decl_t>();
       },
       [](keyword kw) {
         switch(kw) {
@@ -458,7 +458,7 @@ struct parser : sema::semantics, lex_spirit {
     if(is<sema::id>(peek_token())) {
       sema::id &id = peek_token();
       if(!id.node || !id.node->decl) id = name_lookup(id.name);
-      if(id.node && is<tree::typedef_decl_t>(id.node->decl)) {
+      if(id.node && id.node->decl.is<tree::typedef_decl_t>()) {
         type = ((tree::typedef_decl_t &) id.node->decl).type;
         consume();
         return true;
@@ -564,7 +564,7 @@ struct parser : sema::semantics, lex_spirit {
 
     dss.type = declarator(id, dss.type, dss.attrs);
 
-    if(is<tree::function_type_t>(dss.type->type))
+    if(dss.type->type.is<tree::function_type_t>())
       dss.type = tree::make_pointer(dss.type);
     return tree::declarator{ .name = id.name, .type = dss.type };
   }

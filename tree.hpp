@@ -113,6 +113,7 @@ public:
   ~tree_value() { --data->count; }
 
   template<class T> bool is_narrow();
+  template<class T> bool is() const;
 
   tree_value cpy() { return (*this)([&](auto &x) { return tree_value{x}; }); }
 
@@ -377,7 +378,7 @@ TREE_DEF(continue_statement, : statement_t {});
 TREE_DEF(goto_statement, : statement_t) { struct empty {}; variant<empty, label, expression> target; };
 TREE_DEF(identifier_token, : base_t { location_t loc; string str; });
 
-template<class T_t> tree_value<T_t>::operator bool() const { return !is<empty_node_t>(*this); }
+template<class T_t> tree_value<T_t>::operator bool() const { return !is<empty_node_t>(); }
 
 template<class T_t> decltype(auto) tree_value<T_t>::operator()(auto &&f) {
   using R = std::invoke_result_t<decltype(f), T_t &>;
@@ -417,8 +418,10 @@ template<class Q> constexpr auto tree_value<Q>::notypes() { return size_c<find()
 template<class T_t> template<class T> bool tree_value<T_t>::is_narrow() {
   return (*this)([]<class TQ>(TQ &) { return narrow<TQ, T>; });
 }
+template<class T_t> template<class T> bool tree_value<T_t>::is() const {
+  return index() == indexof<T>();
+}
 template<class T_t> template<narrow<T_t> U> tree_value<T_t>::operator tree_value<U>() {
-  //c9_assert(is_narrow<U>());
   if(!is_narrow<U>())
     return {};
   tree_value<U> r;
