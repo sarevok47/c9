@@ -9,7 +9,6 @@
 #include "flat-map.hpp"
 
 namespace c9 {
-namespace parse { enum class storage_class_spec; sv to_sv(storage_class_spec); }
 namespace sema { struct node_t; };
 namespace lex {
 constexpr auto assign_puncs = tuple("="_s, "+="_s, "-="_s, "*="_s, "/="_s, "&="_s, "|="_s, "<<="_s, ">>="_s, "^="_s);
@@ -226,14 +225,14 @@ struct declarator {
   string name;
   type_name type;
 };
-
-
 TREE_DEF(variable, : decl_t {
   string name;
-  type_name type;
+  type_decl type;
   expression definition;
 
   bool is_global {};
+  variant_t<""_s, "extern"_s, "static"_s, "auto"_s, "register"_s> scs;
+
   std::vector<attribute> attrs;
 });
 TREE_DEF(access_member, : lvalue_t { expression expr; variable member; });
@@ -284,6 +283,7 @@ TREE_DEF(function, : decl_t {
   string name;
   function_type type;
   compound_statement definition;
+  variant_t<""_s, "extern"_s, "static"_s> scs;
 });
 
 TREE_NARROW_DEF(arithmetic_type, : scalar_type_t { constexpr bool is_arithmetic() { return true; } });
@@ -418,7 +418,9 @@ template<class T_t> template<class T> bool tree_value<T_t>::is_narrow() {
   return (*this)([]<class TQ>(TQ &) { return narrow<TQ, T>; });
 }
 template<class T_t> template<narrow<T_t> U> tree_value<T_t>::operator tree_value<U>() {
-  c9_assert(is_narrow<U>());
+  //c9_assert(is_narrow<U>());
+  if(!is_narrow<U>())
+    return {};
   tree_value<U> r;
   r.data = data;
   ++r.data->count;

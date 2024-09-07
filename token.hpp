@@ -10,7 +10,10 @@
 namespace c9 {
   namespace sema {
     struct node_t {
-      tree::decl decl; // typedef or variable name
+      struct {
+        tree::decl decl; // typedef or variable name
+        bool decl_implicit{};
+      };
       tree::struct_decl struct_decl;
       tree::union_decl union_decl;
     };
@@ -20,6 +23,8 @@ namespace c9 {
       string name;
       size_t level;
       node_t *node{};
+
+      bool is_global_scope() { return !level; }
     };
 
   }

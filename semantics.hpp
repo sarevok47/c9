@@ -7,6 +7,7 @@
 #include <stack>
 
 namespace c9 { namespace sema {
+using storage_class_spec = variant_t<""_s, "typedef"_s, "extern"_s, "static"_s, "auto"_s, "register"_s>;
 class label_manager {
   flat_map<string, tree::label> labels;
 
@@ -42,7 +43,7 @@ public:
 
 
 struct compound_scope {};
-struct fn_scope     { label_manager labels; };
+struct fn_scope     { tree::function_type type; label_manager labels; };
 struct control_scope {};
 struct switch_scope { tree::switch_statement tree; };
 
@@ -51,8 +52,11 @@ struct scope  {  variant<compound_scope, fn_scope, control_scope, switch_scope> 
 
 
 template<class ...T> struct scope_manager {
-  struct scope : /*flat_map*/std::unordered_map<string, node_t, string::hash> { variant<T...> v; };
-  std::list<scope> stack;
+  struct scope : /*flat_map*/std::unordered_map<string, node_t, string::hash> {
+    variant<T...> v;
+    scope(variant<T...> v) : v{mov(v)} {}
+  };
+  std::vector<std::unique_ptr<scope>> stack;
 private:
   std::tuple<std::stack<refw<T>>...> ctx_scope_stacks;
 public:
@@ -60,11 +64,16 @@ public:
 
   template<class U> auto &ctx_scope_get() { return std::get<std::stack<refw<U>>>(ctx_scope_stacks); }
   template<class S = compound_scope> void push_scope(S s = {}) {
-    stack.emplace_back(scope{ .v = mov(s)});
-    ctx_scope_get<S>().push((S &) stack.back().v);
+    stack.emplace_back(std::make_unique<scope>(mov(s)));
+    ctx_scope_get<S>().push((S &) stack.back()->v);
+    if constexpr(__is_same(S, fn_scope))
+      for(auto &dector : s.type->params)
+        stack.back()->operator[](dector.name).decl = tree::variable{{
+          .name = dector.name, .type = dector.type
+        }};
   }
   void pop_scope() {
-    visit(stack.back().v, [&]<class S>(S &) {
+    visit(stack.back()->v, [&]<class S>(S &) {
       ctx_scope_get<S>().pop();
     });
     stack.pop_back();
@@ -82,7 +91,7 @@ struct semantics {
     auto &scopes = this->scopes.stack;
     size_t scop = scopes.size() - 1;
     for(auto &scope : scopes | rv::reverse) {
-      if(auto p = scope.find(name); p != scope.end())
+      if(auto p = scope->find(name); p != scope->end())
         return {  name, scop, &p->/*value*/second };
 
       --scop;
@@ -94,7 +103,7 @@ struct semantics {
   node_t &get_or_def_node(id id) {
     if(id.node && id.level == scopes.stack.size() - 1)
       return *id.node;
-    return scopes.stack.back()[id.name];
+    return (*scopes.stack.back())[id.name];
   }
 
   tree::subscript_expression build_subscript_expression(source_range loc, tree::expression of, tree::expression with) {
@@ -385,6 +394,99 @@ struct semantics {
 
     // TODO ERR message
     return {};
+  }
+
+
+
+  tree::decl build_typedef_decl(id id, tree::decl &node, tree::type_name type) {
+    if(node) {
+      // TODO ERR message
+      c9_assert(0);
+      return {};
+    }
+    return node = tree::typedef_decl{{.name = id.name, .type = type}};
+  }
+  tree::decl build_local_extern_decl(id id, tree::decl &node, tree::type_name type) {
+    return node(overload {
+      [&](auto &decl) -> tree::decl requires requires { decl.scs; } {
+        if(decl.type != type) {
+          // TODO ERR Message
+          return {};
+        }
+        if(decl.scs == "extern"_s)
+          // ok
+          return node;
+
+        // TODO ERR redeclarqation
+        return node;;
+      },
+      [&](tree::empty_node_t) {
+        return node = build_decl({.name = id.name, .level = 0}, type, "extern"_s, true);
+      },
+      [](auto &) -> tree::decl {
+        // TODO ERR message
+        c9_assert(0);
+      }
+    });
+  }
+  tree::decl build_decl(id id, tree::type_name type, storage_class_spec scs, bool implicit = false) {
+    if(!id.node || !id.node->decl)
+      id.node = &scopes.stack[id.level]->operator[](id.name);
+    auto &decl = id.node->decl;
+
+    if(scs == "typedef"_s)
+      return build_typedef_decl(id, decl, type);
+
+    auto funtype = (tree::function_type) type->type;
+    if((scs == "extern"_s || funtype) && !id.is_global_scope())
+      return build_local_extern_decl(id, decl, type);
+
+    tree::type_decl dtype;
+
+    auto scs_assign = []<class T>(T &&to, auto from) -> __remove_cvref(T) {
+      return visit(from, [&](auto from) {
+        if constexpr(!requires { to = from;  }) {
+          // TODO err message
+        } else
+          to = from;
+        return to;
+      });
+    };
+    if(decl) {
+      if(dtype = get_decl_type(decl); decl && (is<tree::typedef_decl_t>(dtype) || dtype != type->type)) {
+        // TODO ERR message
+        c9_assert(0);
+        return {};
+      }
+
+      return decl([&](auto &tree) -> tree::decl {
+        if constexpr(requires { tree.scs; }) {
+          if(tree.scs == "extern"_s && (scs != ""_s && scs != "extern"_s)) {
+            // TODO ERR message
+            return {};
+          }
+          if(scs != "extern"_s) {
+            scs_assign(tree.scs, scs);
+            id.node->decl_implicit = false;
+          }
+          return decl;
+        }
+        c9_assert(0);
+      });
+    }
+
+
+    id.node->decl_implicit = implicit;
+    if(funtype)
+      decl = tree::function{{.name = id.name, .type = funtype,
+        .scs = scs_assign(decltype(tree::function_t::scs){}, scs)
+      }};
+    else
+      decl = tree::variable{{.name = id.name, .type = type->type,
+        .is_global = id.is_global_scope(),
+        .scs = scs_assign(decltype(tree::variable_t::scs){}, scs)
+      }};
+    return decl;
   }
 
   semantics(driver &d) : d{d} { scopes.push_scope(compound_scope{});  }

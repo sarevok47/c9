@@ -226,7 +226,6 @@ template<class T> constexpr bool is(auto &&v) {
 }
 
 
-
 template<class ...T> constexpr auto variant_types(variant<T...> v) {
   return tuple(T{}...);
 }

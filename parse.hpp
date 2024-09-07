@@ -9,14 +9,7 @@
 
 namespace c9 { namespace parse {
 using lex::keyword;
-enum class storage_class_spec {
-  none,
-  typedef_,
-  extern_,
-  static_,
-  auto_,
-  register_
-};
+using sema::storage_class_spec;
 
 struct decl_specifier_seq {
   tree::type_name type;
@@ -25,13 +18,6 @@ struct decl_specifier_seq {
 
   location_t storage_class_loc;
 };
-
-sv to_sv(storage_class_spec scs) {
-  constexpr static sv tab[] = {
-    "", "typedef", "extern", "static", "auto", "register"
-  };
-  return tab[size_t(scs)];
-}
 
 
 
@@ -104,7 +90,8 @@ struct parser : sema::semantics, lex_spirit {
     return visit(peek_token(), overload {
       [&](sema::id &id) -> tree::expression {
         consume();
-        if(!id.node || !id.node->decl) id = name_lookup(id.name);
+        if(!id.node || !id.node->decl)
+          id = name_lookup(id.name);
         if(id.node->decl)
           return build_decl_expression(loc, id.node->decl);
 
@@ -392,12 +379,12 @@ struct parser : sema::semantics, lex_spirit {
                     | (keyword::restrict_ | keyword::__restrict_, [&] { type->is_restrict = true; }));
   }
 
-  bool storage_class_specifier(enum storage_class_spec &scs) {
-    return *this <= ((keyword::typedef_,   [&] { scs = storage_class_spec::typedef_;  })
-                    | (keyword::extern_,   [&] { scs = storage_class_spec::extern_;   })
-                    | (keyword::auto_,     [&] { scs = storage_class_spec::auto_;     })
-                    | (keyword::static_,   [&] { scs = storage_class_spec::static_;   })
-                    | (keyword::register_, [&] { scs = storage_class_spec::register_; }));
+  bool storage_class_specifier(storage_class_spec &scs) {
+    return *this <= ((keyword::typedef_,   [&] { scs = "typedef"_s;  })
+                    | (keyword::extern_,   [&] { scs = "extern"_s;   })
+                    | (keyword::auto_,     [&] { scs = "auto"_s;     })
+                    | (keyword::static_,   [&] { scs = "static"_s;   })
+                    | (keyword::register_, [&] { scs = "register"_s; }));
   }
 
    bool struct_or_union_specifier(tree::type_decl &td) {
@@ -430,7 +417,7 @@ struct parser : sema::semantics, lex_spirit {
         decl_specifier_seq dss;
         declspec(dss);
 
-        if(dss.storage_class != storage_class_spec::none)
+        if(dss.storage_class != ""_s)
           error(dss.storage_class_loc, {}, "storage class specifier in structural field");
 
         do {
@@ -538,7 +525,6 @@ struct parser : sema::semantics, lex_spirit {
 
   bool declspec(decl_specifier_seq &dss, bool scs_ok = true) {
     dss.type = tree::type_name_t{};
-    dss.storage_class = storage_class_spec::none;
     type_spec_state tss;
 
     bool r{};
@@ -548,7 +534,7 @@ struct parser : sema::semantics, lex_spirit {
         storage_class_spec scs{};
         bool r = scs_ok && storage_class_specifier(scs);
         if(r) {
-          if(bool(dss.storage_class))
+          if(dss.storage_class.index())
             error(loc, {}, "multiple storage class specifier appears");
           dss.storage_class = scs;
           dss.storage_class_loc = loc;
@@ -707,73 +693,56 @@ struct parser : sema::semantics, lex_spirit {
     *this <= &parser::attribute_list / dss.attrs;
     tree::decl decl;
 
-    auto declarate = [&](auto tree, auto type) {
-      switch(dss.storage_class) {
-        case storage_class_spec::typedef_:
-          decl = tree::typedef_decl{{ .name = dector_name.name, .type = type}};
-          break;
-        case storage_class_spec::extern_:
-          if(dector_name.node && dector_name.node->decl) return;
-        default: decl = tree;
-      }
-      if(dector_name.name.size())
-        decl = do_definition(dector_name, &sema::node_t::decl, decl);
-    };
+    if(!dector_type->type) {
+      error(peek_token().loc, {}, "expected type in declaration");
+      return {};
+    }
 
-    dector_type->type(overload {
-      [&](tree::empty_node_t &) {
-        error(peek_token().loc, {}, "expected type in declaration");
-      },
-      [&](tree::function_type_t &f) {
-        tree::function fun {{
-          .name = dector_name.name,
-          .type =  tree::function_type(dector_type->type)
-        }};
-        declarate(fun, dector_type);
+    dector_name.node = &get_or_def_node(dector_name);
+    dector_name.level = scopes.stack.size() - 1;
+    decl = build_decl(dector_name, dector_type, dss.storage_class);
+    bool block_decl_accept = decl(overload {
+      [&](tree::function_t &fun) {
         bool body = !tail && *this <= ("{"_s, [&] {
-          scopes.push_scope<sema::fn_scope>();
-          for(auto &dector : f.params)
-            do_definition(sema::id{dector.name}, &sema::node_t::decl, tree::variable_t{
-              .name = dector.name, .type = dector.type
-            });
+          if(fun.scs == "extern"_s)
+            error(peek_token().loc, {}, "external function definition is not allowed");
 
-
+          scopes.push_scope<sema::fn_scope>({fun.type});
           tree::compound_statement_t compound;
           while(peek_token() && peek_token() != "}"_s)
             compound.emplace_back(block_item());
           scopes.pop_scope();
           *this <= "}"_req;
-          fun->definition = compound;
+          fun.definition = compound;
         });
-        if(!tail && !body && *this <= ","_s) {
-          tree::block_decl_t block{{decl}};
-          do block.emplace_back(init_decl(dss, true)); while(*this <= ","_s);
-          decl = block;
-        }
 
         if(!body && !tail)
-          *this <= ";"_req;
+          return !(*this <= ";"_s);
+        return !body && !tail;
       },
-      [&](auto &) {
-        tree::variable var {{.name = dector_name.name, .type = dector_type,
-          .is_global = scopes.in_global()
-        }};
-
-        declarate(var, dector_type);
-
-        if(*this <= "="_s)
-          var->definition = initializer();
-
-
-        if(!tail && *this <= ","_s) {
-          tree::block_decl_t block{{decl}};
-          do block.emplace_back(init_decl(dss, true)); while(*this <= ","_s);
-          decl = block;
+      [&](tree::variable_t &var) {
+        if(*this <= "="_s) {
+          auto init = initializer();
+          if(get_common_type(lex::assign_tok{"="_s}, init->loc, strip_type(var.type), strip_type(init->type)))
+            var.definition = init;
         }
-        if(!tail )
-          *this <= ";"_req;
+        if(!tail)
+          return !(*this <= ";"_s);
+        return !tail;
+      },
+      [&](auto &s) {
+        return !(*this <= ";"_s);
       }
     });
+
+    if(block_decl_accept) {
+      while(*this <= ","_s) {
+        tree::block_decl_t block{{decl}};
+        do block.emplace_back(init_decl(dss, true)); while(*this <= ","_s);
+        decl = block;
+      }
+      *this <= ";"_req;
+    }
     return decl;
   }
   tree::decl declaration() {

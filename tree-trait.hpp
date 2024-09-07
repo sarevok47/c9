@@ -21,12 +21,28 @@ auto make_unsigned(auto tree) {
     long_long_type_node > unsigned_long_long_type_node
   }(tree);
 }
-
+type_decl get_decl_type(decl decl) {
+  return decl(overload {
+    [](auto &) -> type_decl { c9_assert(false); },
+    [](auto &decl) requires requires { decl.type; } { return decl.type; }
+  });
+}
 type_decl strip_type(auto type) {
   return type(overload {
     [](typedef_decl_t &t)  { return strip_type(t.type); },
     [](type_name_t    &t)  { return strip_type(t.type); },
     [&](auto &)            { return type; }
+  });
+}
+bool operator==(type_decl lhs, type_decl rhs) {
+  return visit(strip_type(lhs), strip_type(rhs), overload {
+    [](pointer_t &lhs, pointer_t &rhs) { return lhs.type == rhs.type; },
+    [](type_name_t &lhs, type_name_t &rhs) {
+      return lhs.is_const == rhs.is_const && lhs.is_volatile == rhs.is_volatile
+            && lhs.is_restrict == rhs.is_restrict && lhs.type == rhs.type;
+    },
+    []<class T>(T &lhs, T &rhs) { return &lhs == &rhs; },
+    [](auto &, auto &) { return false; },
   });
 }
 bool is_incomplete_type(type_decl type) {
