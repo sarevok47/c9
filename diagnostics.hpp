@@ -195,7 +195,10 @@ struct diagnostic_engine {
   location_table &loc_tab;
 
 
-  template<class ...T> void operator()(location_t loc, message_type type, std::format_string<T...> fmt, T&& ...args);
+  template<class ...T> void operator()(location_t loc, message_type type, std::format_string<T...> fmt, T&& ...args) {
+    rich_location rl{loc};
+    diagnostic_impl(stderr, rl, type, fmt, (decltype(args)) args...);
+  }
   template<class ...T> void operator()(source_range loc, message_type type, std::format_string<T...> fmt, T&& ...args) {}
 private:
   void line_render(FILE *out, size_t line_start, size_t line_finish, auto &&underline) {

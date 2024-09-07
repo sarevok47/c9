@@ -25,10 +25,6 @@ struct driver {
 };
 
 
-template<class ...T> void diagnostic_engine::operator()(location_t loc, message_type mtype, std::format_string<T...> fmt, T&& ...args) {
-  rich_location rl{loc};
-  diagnostic_impl( stderr, rl, mtype, fmt, (decltype(args)) args...);
-}
 
 
 
