@@ -317,6 +317,11 @@ struct semantics {
       },
       [&](decltype("*"_s)) {
         if(auto ptr = (tree::pointer) expr->type) {
+          if(ptr->type.is<tree::function_type_t>()) {
+            expr->loc = loc;
+            r = expr;
+            return;
+          }
           tree::dereference_t der{.expr = expr};
           der.loc = loc;
           der.type = tree::function_type(ptr->type) ? expr->type : ptr->type;
