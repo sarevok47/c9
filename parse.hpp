@@ -105,11 +105,11 @@ struct parser : sema::semantics, lex_spirit {
         return visit(v, overload {
           [&](lex::integer int_) -> tree::expression {
             uint64_t value;
-            if(stat == lex::interpret_status::out_of_range) {
-
-            } else {
+            if(stat == lex::interpret_status::out_of_range)
+              error(loc, {}, "integer literal is too large to be represented in any integer type");
+            else
               value = int_.value;
-            }
+
             return tree::int_cst_expression{{value,tree::int_type_node, loc}};
           },
           [&](lex::floating float_) -> tree::expression {
