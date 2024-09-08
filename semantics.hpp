@@ -316,7 +316,15 @@ struct semantics {
         r = addr;
       },
       [&](decltype("*"_s)) {
-
+        if(auto ptr = (tree::pointer) expr->type) {
+          tree::dereference_t der{.expr = expr};
+          der.loc = loc;
+          der.type = tree::function_type(ptr->type) ? expr->type : ptr->type;
+          r = der;
+        } else {
+          d.diag(loc, "error"_s, "cannot dereference non pointer type");
+          return;
+        }
       },
       /* 6.5.3.3 Unary arithmetic operators
        * Constraints
