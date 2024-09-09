@@ -34,11 +34,6 @@ template<> struct std::formatter<c9::string> {
 
 
 namespace c9 {
-namespace lex {
-  const char *search_end_of_phase2_line(const char *s, const char *end);
-}
-
-
 enum class color {
   none = 00,
   bold = 01,

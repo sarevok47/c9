@@ -10,10 +10,8 @@
 namespace c9 {
   namespace sema {
     struct node_t {
-      struct {
-        tree::decl decl; // typedef or variable name
-        bool decl_implicit{};
-      };
+      tree::decl decl; // typedef or variable name
+      bool decl_implicit{};
       tree::struct_decl struct_decl;
       tree::union_decl union_decl;
     };
@@ -30,7 +28,14 @@ namespace c9 {
   }
 namespace lex {
 
-
+enum class flags : uint8_t {
+  discard_next_line   = 1 << 0,
+  warn_on_invalid_tok = 1 << 1,
+  angled_string       = 1 << 2,
+  pragma_string       = 1 << 3,
+  disable_loc         = 1 << 4,
+  paste_tokens        = 1 << 5
+};
 
 constexpr auto puncs = tuple(
   "<=>"_s, "["_s, "]"_s, "("_s, ")"_s, "{"_s, "}"_s, "."_s, "->"_s, "++"_s,

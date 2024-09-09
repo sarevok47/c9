@@ -21,7 +21,7 @@ auto make_unsigned(auto tree) {
     long_long_type_node > unsigned_long_long_type_node
   }(tree);
 }
-type_decl get_decl_type(decl decl) {
+static type_decl get_decl_type(decl decl) {
   return decl(overload {
     [](auto &) -> type_decl { c9_assert(false); },
     [](auto &decl) requires requires { decl.type; } { return decl.type; }
@@ -34,7 +34,7 @@ type_decl strip_type(auto type) {
     [&](auto &)            { return type; }
   });
 }
-bool operator==(type_decl lhs, type_decl rhs) {
+static bool operator==(type_decl lhs, type_decl rhs) {
   return visit(strip_type(lhs), strip_type(rhs), overload {
     [](pointer_t &lhs, pointer_t &rhs) { return lhs.type == rhs.type; },
     [](type_name_t &lhs, type_name_t &rhs) {
@@ -45,7 +45,7 @@ bool operator==(type_decl lhs, type_decl rhs) {
     [](auto &, auto &) { return false; },
   });
 }
-bool is_incomplete_type(type_decl type) {
+static bool is_incomplete_type(type_decl type) {
   return strip_type(type)(overload {
     [](narrow<structural_decl_t> auto &decl) -> bool { return !decl.definition; },
     [](auto &) { return false; }
@@ -61,14 +61,14 @@ template<narrow<integer_type_t> Tree> integer_type promote_int(Tree type) {
   else return type_node<Tree>;
 }
 
-type_decl promote(type_decl type) {
+static type_decl promote(type_decl type) {
   return type(overload {
     [](narrow<integer_type_t> auto &type) -> type_decl { return promote_int(type); },
     [&](auto &) -> type_decl { return type;}
   });
 }
 // 6.3.1.8 Usual arithmetic conversions
-type_decl usual_arith_conv(auto lhs, auto rhs) {
+static type_decl usual_arith_conv(auto lhs, auto rhs) {
   auto one_is = []<class T>(T) {
     return overload {
       [](T, T)     -> type_decl  { return type_node<T>; },

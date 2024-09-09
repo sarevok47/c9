@@ -9,7 +9,7 @@
 #include "flat-map.hpp"
 
 namespace c9 {
-namespace sema { struct node_t; };
+namespace sema { struct node_t;  };
 namespace lex {
 constexpr auto assign_puncs = tuple("="_s, "+="_s, "-="_s, "*="_s, "/="_s, "&="_s, "|="_s, "<<="_s, ">>="_s, "^="_s);
 constexpr auto binary_puncs = tuple(
@@ -32,7 +32,7 @@ constexpr bool is_binop(auto x) {
   return binary_puncs([=](auto ...tok) { return ((tok == x) || ...); });
 }
 constexpr bool is_unary(auto x) {
-  return assign_puncs([=](auto ...tok) { return ((tok == x) || ...); });
+  return unary_puncs([=](auto ...tok) { return ((tok == x) || ...); });
 }
 constexpr bool is_crement(auto x) {
   return crement_puncs([=](auto ...tok) { return ((tok == x) || ...); });
@@ -263,7 +263,7 @@ TREE_DEF(cast_expression, : rvalue_t { expression cast_from; type_decl cast_to; 
 TREE_DEF(sizeof_expression, : rvalue_t {  variant<type_decl, expression> arg; });
 
 TREE_NARROW_DEF(builtin_type, : type_decl_t {});
-template<narrow<builtin_type_t> T> static inline tree_value<T> type_node;
+template<narrow<builtin_type_t> T> tree_value<T> type_node;
 #define BUILTIN_TYPE_DEF(name, a...) \
   TREE_DEF(name, a); \
   static auto &name##_node =   type_node<name##_t>;

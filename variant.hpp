@@ -164,7 +164,7 @@ ALWAYS_INLINE decltype(auto) visit(auto &&v, auto &&f) {
 }
 
 ALWAYS_INLINE decltype(auto) visit(auto &&v1, auto &&v2, auto &&f) {
-#if 0
+#if 1
 
 #undef _VISIT_CASE
 #undef _VISIT_CASE_CNT
@@ -196,24 +196,24 @@ ALWAYS_INLINE decltype(auto) visit(auto &&v1, auto &&v2, auto &&f) {
 
 
 #else
-  constexpr static auto tab = [] {
+  constexpr static auto tab = [&] {
     using F = decltype(f(v1[0_c], v2[0_c]))(*)(decltype(v1), decltype(v2), decltype(f));
 
     constexpr decltype(v1.notypes()) sz1{};
     constexpr decltype(v2.notypes()) sz2{};
 
-    std::array<std::array<F, sz2()>, sz1()> tab;
+    std::array<std::array<F, sz2()>, sz1()> table;
 
     (make_seq(sz1)([&](auto ...x) {
       (make_seq(sz2)([&](auto ...y) {
         auto xx = x;
-        ((tab[xx()][y()] = [](auto v1, auto v2, auto f) {
+        ((table[xx()][y()] = [](auto v1, auto v2, auto f) {
           return f(v1[decltype(xx){}], v2[decltype(y){}]);
         }), ...);
       }), ...);
     }));
 
-    return tab;
+    return table;
   }();
 
   return tab[v1.index()][v2.index()]((decltype(v1)) v1, (decltype(v2)) v2, (decltype(f)) f);

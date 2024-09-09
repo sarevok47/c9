@@ -10,13 +10,23 @@
 
 
 namespace c9 { namespace pp {
+using lex::flags;
 struct tokenbuf : std::vector<lex::token> {
   tokenbuf &operator<<(lex::token tok) {
     this->emplace_back(mov(tok));
     return *this;
   }
 };
+inline fs::path find_include_file(sv s, const auto& ...dirs) {
+  std::array p{rv::single(dirs)...};
 
+  for(auto &path : p | rv::join | rv::join) {
+    if(fs::is_regular_file(path/s))
+      return path/s;
+  }
+
+  return {};
+}
 
 enum class builtin_macro_type {
   none,
@@ -44,7 +54,7 @@ struct macro {
 
 using macro_p = shared_ptr<macro>;
 
-macro_p make_macro(macro m) { return mov(m); }
+static macro_p make_macro(macro m) { return mov(m); }
 
 
 struct range_stream {
@@ -116,7 +126,18 @@ class preprocessor {
   }
 
   lex::string_literal stringify(tokenbuf &buf);
-  lex::string_literal stringify(auto &&next);
+  lex::string_literal stringify(auto &&next)  {
+    std::string buf = "\"";
+    lex::token tok;
+    size_t cnt = 0 ;
+    for(; next(tok); ++cnt) {
+      if(cnt && (tok.prev_space || tok.start_of_line))
+        buf += " ";
+      buf += tok.spelling();
+    }
+    buf += "\"";
+    return lex::string_literal{{buf.c_str()}};
+  }
 
   tokenbuf expand_arg(tokenbuf &unexpanded);
 
@@ -151,7 +172,36 @@ class preprocessor {
 
 
   void skip_pp_line();
-  auto handle_include_path(auto &&f);
+  auto handle_include_path(auto &&f) {
+    return visit(get_token(flags::discard_next_line | flags::angled_string), overload {
+      [&](lex::string_literal slit) {
+        if(slit.front() != '\"') {
+          d.diag(tok.loc, "error"_s, "include path of form <FILENAME> or \"FILENAME\" expected");
+          return f("", "");
+        }
+        return f(find_include_file(sv(slit).substr(1, slit.size() - 2), std::vector{lexer->src_file.path.parent_path()}, d.opt.include_paths, d.opt.system_include_paths), slit);
+      },
+      [&](lex::angled_string astr) {
+        sv s =  sv(astr).substr(1, astr.size() - 2);
+        return f(find_include_file(s, d.opt.system_include_paths), astr);
+      },
+      [&](decltype("<"_s)) {
+        std::string s = "<";
+        while(get_token(flags::discard_next_line) && tok != ">"_s) {
+          if(tok.prev_space) s += " ";
+          s += tok.spelling();
+        }
+        if(tok != ">"_s)
+          d.diag(tok.loc, "error"_s, "closing '>' expected");
+        s += ">";
+        return f(find_include_file(sv(s).substr(1, s.size() - 2), d.opt.system_include_paths), s);
+      },
+      [&](auto &) {
+        d.diag(tok.loc, "error"_s, "include path of form <FILENAME> or \"FILENAME\" expected");
+        return f("", "");
+      }
+    });
+  }
   void line_control();
   void condition_skip();
   bool condition_directive();
@@ -213,6 +263,3 @@ public:
 
 }}
 
-#include "macro.hpp"
-#include "directives.hpp"
-#include "pp-expr.hpp"

@@ -39,7 +39,7 @@ struct character {
  * character truncated to the width of a target character. The final bit-pattern is given type int, and is therefore signed, regardless of whether single characters are signed or not (a slight change from
  * versions 3.1 and earlier of GCC). If there are more characters in the constant than would fit in the target int the compiler issues a warning, and the excess leading characters are ignored.
 */
-character interpret_char(char_literal cl) {
+static character interpret_char(char_literal cl) {
   character c;
 
   auto cur = cl.begin();
@@ -56,7 +56,7 @@ enum class interpret_status {
 };
 
 
-integer interpret_integer(numeric_constant nc, interpret_status &ok) {
+static integer interpret_integer(numeric_constant nc, interpret_status &ok) {
   auto p = nc.begin();
 
 
@@ -91,7 +91,7 @@ integer interpret_integer(numeric_constant nc, interpret_status &ok) {
   return r;
 }
 
-floating interpret_floating(numeric_constant nc, interpret_status &ok) {
+static floating interpret_floating(numeric_constant nc, interpret_status &ok) {
   auto p = nc.begin();
   bool hex = *p == '0' && p + 1 != nc.end() && (p[1] == 'x' || p[1] == 'X');
 
@@ -114,7 +114,7 @@ floating interpret_floating(numeric_constant nc, interpret_status &ok) {
 
   return r;
 }
-variant<integer, floating> interpret_nc(numeric_constant nc, interpret_status &ok) {
+static variant<integer, floating> interpret_nc(numeric_constant nc, interpret_status &ok) {
   if(!nc.floating) return interpret_integer(nc, ok);
   else             return interpret_floating(nc, ok);
 }

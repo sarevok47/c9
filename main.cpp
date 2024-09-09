@@ -21,10 +21,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <sys/prctl.h>
-
 #include  "parse.hpp"
 #include "cfg.hpp"
-
 #include "x86/target.hpp"
 void handler(int sig) {
   char pid_buf[30];
@@ -71,7 +69,6 @@ int main(int argc, char **argv) {
 x86_target t;
   driver d{.t = t};
 
-
   auto &ff = d.files["../../tmp.cpp"];
 
 
@@ -105,6 +102,9 @@ lex::lexer lex{d, file};
 lex::token f;
 
 
+
+
+
 tree::default_ =  [] {
   tree::count_data cd;
   cd.count = 1;
@@ -115,6 +115,7 @@ tree::default_ =  [] {
 
 
 	pp::preprocessor pp{d, file};
+
 
 	parse::parser parser{d, pp};
 

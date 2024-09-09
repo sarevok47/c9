@@ -115,46 +115,6 @@ void preprocessor::process_include( fs::path path) {
 }
 
 
-inline fs::path find_include_file(sv s, const auto& ...dirs) {
-  std::array p{rv::single(dirs)...};
-
-  for(auto &path : p | rv::join | rv::join) {
-    if(fs::is_regular_file(path/s))
-      return path/s;
-  }
-
-  return {};
-}
-auto preprocessor::handle_include_path(auto &&f) {
-  return visit(get_token(flags::discard_next_line | flags::angled_string), overload {
-    [&](lex::string_literal slit) {
-      if(slit.front() != '\"') {
-        d.diag(tok.loc, "error"_s, "include path of form <FILENAME> or \"FILENAME\" expected");
-        return f("", "");
-      }
-      return f(find_include_file(sv(slit).substr(1, slit.size() - 2), std::vector{lexer->src_file.path.parent_path()}, d.opt.include_paths, d.opt.system_include_paths), slit);
-    },
-    [&](lex::angled_string astr) {
-      sv s =  sv(astr).substr(1, astr.size() - 2);
-      return f(find_include_file(s, d.opt.system_include_paths), astr);
-    },
-    [&](decltype("<"_s)) {
-      std::string s = "<";
-      while(get_token(flags::discard_next_line) && tok != ">"_s) {
-        if(tok.prev_space) s += " ";
-        s += tok.spelling();
-      }
-      if(tok != ">"_s)
-        d.diag(tok.loc, "error"_s, "closing '>' expected");
-      s += ">";
-      return f(find_include_file(sv(s).substr(1, s.size() - 2), d.opt.system_include_paths), s);
-    },
-    [&](auto &) {
-      d.diag(tok.loc, "error"_s, "include path of form <FILENAME> or \"FILENAME\" expected");
-      return f("", "");
-    }
-  });
-}
 
 void preprocessor::handle_include() {
   auto prev = lexer;

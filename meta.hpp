@@ -239,7 +239,7 @@ template<char ...c> struct string_seq {
   constexpr string_seq<c..., cc...> operator+(string_seq<cc...>) { return {}; }
   
   template<class T, T ...n>
-  constexpr auto sub(sequence<T, n...>) { return string_seq<data[n]...>{}; }
+  constexpr static string_seq<data[n]...> sub(sequence<T, n...>) {  return {}; }
   
   constexpr static auto size() { return size_c<sizeof...(c)>; }
 
@@ -330,7 +330,7 @@ constexpr auto merge(auto x, auto y, auto ...rest) {
 template<class Derived, class Base> concept derived_from = std::is_base_of_v<__remove_cvref(Base), __remove_cvref(Derived)>
      && !__is_same(__remove_cvref(Derived), __remove_cvref(Base));
 template<class T, class U> concept narrow = __is_same(__remove_cvref(T), __remove_cvref(U)) || derived_from<T, U>;
-#undef __remove_cvref
+//#undef __remove_cvref
 
 template<class T> class shared_ptr {
   struct nl {

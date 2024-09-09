@@ -8,7 +8,6 @@
 #include <ranges>
 
 namespace c9 { namespace pp {
-using lex::flags;
 
 lex::token preprocessor::get_token_from_stream_1(auto &streams, auto& ...s) {
   lex::token res;
@@ -182,18 +181,6 @@ lex::string_literal preprocessor::stringify(tokenbuf &tokenbuf) {
     if(tok != tokenbuf.begin() && (tok->prev_space || tok->start_of_line))
       buf += " ";
     buf += tok->spelling();
-  }
-  buf += "\"";
-  return lex::string_literal{{buf.c_str()}};
-}
-lex::string_literal preprocessor::stringify(auto &&next) {
-  std::string buf = "\"";
-  lex::token tok;
-  size_t cnt = 0 ;
-  for(; next(tok); ++cnt) {
-    if(cnt && (tok.prev_space || tok.start_of_line))
-      buf += " ";
-    buf += tok.spelling();
   }
   buf += "\"";
   return lex::string_literal{{buf.c_str()}};

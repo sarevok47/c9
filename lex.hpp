@@ -31,18 +31,10 @@ struct cond_entry {
 }
 
 namespace lex {
-enum class flags : uint8_t {
-  discard_next_line   = 1 << 0,
-  warn_on_invalid_tok = 1 << 1,
-  angled_string       = 1 << 2,
-  pragma_string       = 1 << 3,
-  disable_loc         = 1 << 4,
-  paste_tokens        = 1 << 5
-};
 inline flags operator|(flags lhs, flags rhs) { return flags((size_t) lhs | (size_t) rhs); }
 inline bool  operator&(flags lhs, flags rhs) { return (size_t) lhs & (size_t) rhs; }
 
-const char *search_end_of_phase2_line(const char *s, const char *end) {
+static const char *search_end_of_phase2_line(const char *s, const char *end) {
   auto N = 16_c;
 
   using vec [[gnu::vector_size(N())]] = char;
