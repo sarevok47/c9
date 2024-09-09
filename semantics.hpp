@@ -316,7 +316,7 @@ struct semantics {
         r = addr;
       },
       [&](decltype("*"_s)) {
-        if(auto ptr = (tree::pointer) expr->type) {
+        if(auto ptr = (tree::pointer) strip_type(expr->type)) {
           if(ptr->type.is<tree::function_type_t>()) {
             expr->loc = loc;
             r = expr;

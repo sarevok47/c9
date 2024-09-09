@@ -47,6 +47,7 @@ UNARYINSN(reverse, ~);
 struct assign { op src1, dst; };
 struct load   { tree::variable src1; op dst; };
 struct store  { op src1; tree::variable dst; };
+struct deref { op src1, dst; rtype type; };
 struct jump   { struct cfg::basic_block &target; };
 struct br     { op cond; cfg::basic_block &true_, &false_; };
 
@@ -55,7 +56,7 @@ using insn = variant<add, sub, div, mod, mul, lshift, rshift, bit_or, bit_and, b
                      cmp, neg_cmp, less, less_eq, greater, greater_eq,
 
                      bang, positive, neg, reverse,
-                     assign, load, store, jump, br>;
+                     assign, load, store, jump, deref, br>;
 
 constexpr static int_cst true_{true};
 struct dumper {
@@ -108,6 +109,13 @@ private:
     dump(store.dst);
     fprint(out, " = ");
     dump(store.src1);
+    end();
+  }
+  void dump(deref deref) {
+    begin();
+    dump(deref.dst);
+    fprint(out, " = *");
+    dump(deref.src1);
     end();
   }
   void dump(jump);

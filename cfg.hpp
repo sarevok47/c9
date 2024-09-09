@@ -52,27 +52,22 @@ class cfg {public:
           });
         return tmp;
       },
+      [&](tree::dereference_t &deref) -> simple::op {
+        auto tmp = make_tmp();
+        last_bb->add_insn<simple::deref>({
+          .src1 = construct(deref.expr),
+          .dst = tmp
+        });
+        return tmp;
+      },
       [&](tree::unary_expression_t &unary) {
-        return visit(unary.op, overload {
-          [&](decltype("&"_s)) -> simple::op {
-
-          },
-          [&](decltype("*"_s)) -> simple::op {
-
-          },
-          [](decltype("++"_s)) -> simple::op {
-          },
-          [](decltype("--"_s)) -> simple::op  {
-
-          },
-          [&]<class S>(S) {
-            simple::unary<S{}> insn {
-              .src1 = construct(unary.expr),
-              .dst = make_tmp()
-            };
-            last_bb->add_insn(insn);
-            return insn.dst;;
-          }
+        return visit(unary.op,[&]<class S>(S) {
+          simple::unary<S{}> insn {
+            .src1 = construct(unary.expr),
+                     .dst = make_tmp()
+          };
+          last_bb->add_insn(insn);
+          return insn.dst;;
         });
       },
       [&](tree::binary_expression_t &expr) {

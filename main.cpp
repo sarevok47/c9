@@ -122,7 +122,7 @@ tree::default_ =  [] {
     while(parser.peek_token() == ";"_s)
 			parser.consume();
     if(parser.peek_token()) {
-		  auto tree = parser.declaration();/*
+		  auto tree = parser.declaration();
       tree(overload {
         [](auto &) {},
         [&](tree::function_t &fun) {
@@ -143,7 +143,7 @@ tree::default_ =  [] {
             for(auto insn : bb->insns) simple::dumper{stdout}(insn);
           }
         }
-      });*/ tree::dumper{stderr}.dump(tree);
+      });// tree::dumper{stderr}.dump(tree);
     } else break;
 		//tree::dumper{stderr}.dump(tree);
 
