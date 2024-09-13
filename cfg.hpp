@@ -37,6 +37,11 @@ struct basic_block {
   void search_def_for_phi(tree::ssa_variable, std::set<tree::op> &out);
   void place_phi(tree::ssa_variable);
 
+  void visit_dominators(auto &&f) {
+    for(auto bb = this; bb = bb->dominator; )
+      f(*bb);
+  }
+
   basic_block() = default;
   basic_block(size_t i, std::same_as<basic_block *> auto ...preds) : i{i}, preds{preds...} {}
 private:

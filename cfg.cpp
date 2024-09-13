@@ -116,6 +116,4 @@ void control_flow_graph::construct(tree::statement stmt) {
     [&](tree::compound_statement_t &stmts) { for(auto stmt : stmts) construct(stmt); },
   });
 }
-
-
 }}

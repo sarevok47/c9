@@ -23,6 +23,7 @@
 #include <sys/prctl.h>
 #include  "parse.hpp"
 #include "cfg.hpp"
+#include "tree-opt.hpp"
 #include "x86/target.hpp"
 void handler(int sig) {
   char pid_buf[30];
@@ -129,6 +130,7 @@ tree::default_ =  [] {
         [&](tree::function_t &fun) {
           cfg::control_flow_graph cfg{d};
           cfg.construct(fun.definition);
+          c9::tree_opt::cse(cfg);
           for(cfg::basic_block *bb = &cfg.entry; bb; bb = bb->step()) {
             bb->dump(stderr);
            }
