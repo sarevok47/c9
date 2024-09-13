@@ -1,162 +1,74 @@
 #pragma once
 
 #include <vector>
+#include <set>
 #include "tree.hpp"
+#include "tree-trait.hpp"
 #include "simple.hpp"
-
-
+namespace c9 { namespace tree { static bool operator<(tree::op lhs, tree::op rhs) { return lhs.get_data() < rhs.get_data();  }} }
 namespace c9 { namespace cfg {
+void tree_dump(FILE *out, tree::statement tree);
 struct basic_block {
   size_t i{};
-  std::vector<simple::insn> insns;
+  std::vector<tree::statement> insns;
 
-  std::vector<basic_block *> preds, succs;
+  std::set<basic_block *> preds, succs;
+  std::set<tree::op> def, use;
+
+  basic_block *dominator{};
 
   basic_block &push(basic_block bb) { return *(next = new auto{mov(bb)}); }
-  template<class T> void add_insn(T insn) { insns.emplace_back(insn); }
+  void add_insn(tree::statement insn);
+  tree::op add_assign(tree::expression insn, tree::op dst);
 
   basic_block *step() { return next; }
 
-  void jump(basic_block &target)                                  { add_insn(simple::jump{target}); }
-  void br(auto cond, basic_block &true_bb, basic_block &false_bb) { add_insn(simple::br{cond, true_bb, false_bb}); }
+  basic_block &jump(basic_block &target) {
+    add_insn(tree::jump{{.target = target}});
+    return *this;
+  }
+  basic_block &br(tree::expression cond, basic_block &true_bb, basic_block &false_bb) {
+    add_insn(tree::br{{.cond = cond, .true_ = true_bb, .false_ = false_bb}});
+    return *this;
+  }
+
+  void dump(FILE *out);
+
+  void search_def_for_phi(tree::ssa_variable, std::set<tree::op> &out);
+  void place_phi(tree::ssa_variable);
 
   basic_block() = default;
   basic_block(size_t i, std::same_as<basic_block *> auto ...preds) : i{i}, preds{preds...} {}
 private:
   basic_block *next{};
 };
-
-
-class cfg {public:
+class control_flow_graph {public:
   driver &d;
   size_t nlabel = 1, ntmp{};
   basic_block entry, *last_bb = &entry;
+  tree::op last_op;
 
-  simple::temporary make_tmp() { return {ntmp++}; }
+  tree::op make_tmp() { return tree::temporary{{.idx = ntmp++ }}; }
 
-  basic_block &create_bb(auto ...preds) {
+  basic_block &add_bb(auto ...preds) {
     last_bb = &last_bb->push({nlabel++, preds...});
-    ((preds->succs.emplace_back(last_bb)), ...);
+    ((preds->succs.emplace(last_bb)), ...);
+    ((last_bb->succs.emplace(preds)), ...);
+
+    if constexpr(sizeof...(preds) == 1)
+      last_bb->dominator = (preds, ...);
+    else
+      last_bb->dominator = 0_c(preds...)->dominator;
     return *last_bb;
   }
 
-  simple::op construct(tree::expression expr) {
-    return expr(overload {
-      [](auto &) -> simple::op { },
-      [&](tree::decl_expression_t &expr) -> simple::op {
-        auto tmp = make_tmp();
-        if(is<tree::variable_t>(expr.declref))
-          last_bb->add_insn<simple::load>({
-            .src1 = tree::variable(expr.declref),
-            .dst = tmp
-          });
-        return tmp;
-      },
-      [&](tree::dereference_t &deref) -> simple::op {
-        auto tmp = make_tmp();
-        last_bb->add_insn<simple::deref>({
-          .src1 = construct(deref.expr),
-          .dst = tmp
-        });
-        return tmp;
-      },
-      [&](tree::unary_expression_t &unary) {
-        return visit(unary.op,[&]<class S>(S) {
-          simple::unary<S{}> insn {
-            .src1 = construct(unary.expr),
-                     .dst = make_tmp()
-          };
-          last_bb->add_insn(insn);
-          return insn.dst;;
-        });
-      },
-      [&](tree::binary_expression_t &expr) {
-        return visit(expr.op, overload {
-          [&]<char _1, char _2>(string_seq<_1, _2> s) -> simple::op requires (s == "&&"_s || s == "||"_s) {
-            auto lhs = construct(expr.lhs);
-            auto result = make_tmp();
-            last_bb->add_insn<simple::assign>({lhs, result});
-            auto bb = last_bb;
+  friend struct cfg_stream;
+  struct cfg_stream cfg();
 
-            auto &rhs_bb = create_bb(last_bb);
-            last_bb->add_insn<simple::binary<string_seq<_1>{}>>({
-              .src1 = lhs,
-              .src2 = construct(expr.rhs),
-              .dst =  result
-            });
-            create_bb(last_bb);
-            bb->br(lhs, rhs_bb, *last_bb);
-            return result;
-          },
-          [&]<class S>(S) -> simple::op {
-            simple::binary<S{}> insn{
-              .src1 = construct(expr.lhs),
-              .src2 = construct(expr.rhs),
-              .dst = make_tmp()
-            };
-            last_bb->add_insn(insn);
-            return insn.dst;
-          }
-        });
-      }
-    });
-  }
+  tree::op construct(tree::expression expr);
+  void construct(tree::statement stmt);
 
-  void construct(tree::statement stmt) {
-    stmt(overload {
-      [](auto &) {},
-      [&](tree::if_statement_t &if_) {
-        auto cond = construct(if_.cond);
-        auto pre_if = last_bb; // insert conditional jump here later
-        auto &if_start = create_bb(pre_if);
-        construct(if_.if_stmt);
-
-        auto if_end = last_bb;
-        if(if_.else_stmt) {
-          auto &else_ = create_bb(pre_if);
-          construct(if_.else_stmt);
-          create_bb(last_bb, if_end);
-          if_end->jump(*last_bb);
-          pre_if->br(cond,  if_start, else_);
-        } else {
-          create_bb(pre_if, if_end);
-          pre_if->br(cond,  if_start, *last_bb);
-        }
-      },
-      [&](tree::for_statement_t &for_) {
-        visit(for_.clause, [&]<class Tree>(tree::tree_value<Tree> tree) {
-          if constexpr(!__is_same(Tree, tree::empty_node_t)) construct(tree);
-        });
-        auto cond = construct(for_.cond);
-        auto cond_bb = last_bb;
-        auto &loop_body = create_bb(last_bb);
-        construct(for_.body);
-        construct(for_.step);
-        last_bb->jump(*cond_bb);
-        cond_bb->preds.emplace_back(last_bb);
-        cond_bb->br(cond, loop_body, create_bb(cond_bb));
-      },
-      [&]<narrow<tree::expression_t> T>(T &) {
-        construct(tree::expression{tree::tree_value<T>(stmt)});
-      },
-      [&](tree::compound_statement_t &stmts) { for(auto stmt : stmts) construct(stmt); },
-    });
-  }
+  void dump();
 };
 
-
-
 }}
-
-void c9::simple::dumper::dump(br br) {
-  begin();
-  fprint(out, "br cond: ");
-  dump(br.cond);
-  fprint(out, ", true: bb_{}, false: bb_{}", br.true_.i, br.false_.i);
-  end();
-}
-void c9::simple::dumper::dump(jump jmp) {
-  begin();
-  fprint(out, "jump bb_{}", jmp.target.i);
-  end();
-}

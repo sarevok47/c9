@@ -127,22 +127,11 @@ tree::default_ =  [] {
       tree(overload {
         [](auto &) {},
         [&](tree::function_t &fun) {
-          cfg::cfg cfg{d};
+          cfg::control_flow_graph cfg{d};
           cfg.construct(fun.definition);
           for(cfg::basic_block *bb = &cfg.entry; bb; bb = bb->step()) {
-            fprint(stdout, "bb_{}: successors: ", bb->i);
-            for(auto succ : bb->succs | iter_range) {
-              fprint(stdout, "bb_{}", (*succ)->i);
-              if(succ + 1 != bb->succs.end()) fprint(stdout, ", ");
-            }
-            fprint(stdout, "; predecessors: ");
-            for(auto pred : bb->preds | iter_range) {
-              fprint(stdout, "bb_{}", (*pred)->i);
-              if(pred + 1 != bb->preds.end()) fprint(stdout, ", ");
-            }
-            fprintln(stdout, ":");
-            for(auto insn : bb->insns) simple::dumper{stdout}(insn);
-          }
+            bb->dump(stderr);
+           }
         }
       });// tree::dumper{stderr}.dump(tree);
     } else break;

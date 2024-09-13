@@ -4,11 +4,12 @@
 #include "string.hpp"
 #include "variant.hpp"
 #include <vector>
-#include <list>
+#include <set>
 #include "diagnostics.hpp"
 #include "flat-map.hpp"
 
 namespace c9 {
+namespace cfg { struct basic_block; };
 namespace sema { struct node_t;  };
 namespace lex {
 constexpr auto assign_puncs = tuple("="_s, "+="_s, "-="_s, "*="_s, "/="_s, "&="_s, "|="_s, "<<="_s, ">>="_s, "^="_s);
@@ -117,7 +118,9 @@ public:
 
   tree_value cpy() { return (*this)([&](auto &x) { return tree_value{x}; }); }
 
-  operator bool() const;
+  void *get_data() { return data->data; }
+
+  explicit operator bool() const;
 
   decltype(auto) operator()(auto &&f);
 
@@ -174,6 +177,10 @@ TREE_NARROW_DEF(type_decl, : decl_t { });
 TREE_NARROW_DEF(expression, : statement_t { type_decl type; source_range loc; });
 TREE_NARROW_DEF(lvalue, : expression_t {});
 TREE_NARROW_DEF(rvalue, : expression_t {});
+
+
+TREE_NARROW_DEF(op, : expression_t {}); // IR
+
 TREE_DEF(statement_expression, : rvalue_t { compound_statement stmts; });
 TREE_DEF(comma_expression, : rvalue_t { expression lhs, rhs; });
 
@@ -226,7 +233,7 @@ struct declarator {
   string name;
   type_name type;
 };
-TREE_DEF(variable, : decl_t {
+TREE_DEF(variable, : decl_t, op_t {
   string name;
   type_decl type;
   expression definition;
@@ -235,6 +242,7 @@ TREE_DEF(variable, : decl_t {
   variant_t<""_s, "extern"_s, "static"_s, "auto"_s, "register"_s> scs;
 
   std::vector<attribute> attrs;
+  size_t ssa_count{};
 });
 TREE_DEF(access_member, : lvalue_t { expression expr; variable member; });
 TREE_DEF(pointer_access_member, : lvalue_t { expression expr; variable member; });
@@ -280,7 +288,7 @@ TREE_DEF(function_type, : type_decl_t {
 
   pointer ptr_type;
 });
-TREE_DEF(function, : decl_t {
+TREE_DEF(function, : decl_t, op_t {
   string name;
   function_type type;
   compound_statement definition;
@@ -388,6 +396,19 @@ TREE_DEF(break_statement, : statement_t {});
 TREE_DEF(continue_statement, : statement_t {});
 TREE_DEF(goto_statement, : statement_t) { struct empty {}; variant<empty, label, expression> target; };
 TREE_DEF(identifier_token, : base_t { location_t loc; string str; });
+
+
+// IR
+TREE_DEF(mov, : statement_t { expression src; op dst; });
+TREE_DEF(temporary, : op_t { size_t idx; });
+TREE_DEF(ssa_variable, : op_t { tree::variable var; size_t ssa_n; });
+TREE_DEF(cst, : op_t {  variant<__uint128_t, long double> data; });
+
+TREE_DEF(phi,  : expression_t { std::set<op> elts; });
+TREE_DEF(jump, : statement_t { cfg::basic_block &target; });
+TREE_DEF(br,   : statement_t { tree::expression cond; cfg::basic_block &true_, &false_; });
+TREE_DEF(ssa,  : decl_t      { tree::variable var; size_t ssa_count; });
+
 
 template<class T_t> tree_value<T_t>::operator bool() const { return !is<empty_node_t>(); }
 

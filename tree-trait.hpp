@@ -21,36 +21,11 @@ auto make_unsigned(auto tree) {
     long_long_type_node > unsigned_long_long_type_node
   }(tree);
 }
-static type_decl get_decl_type(decl decl) {
-  return decl(overload {
-    [](auto &) -> type_decl { c9_assert(false); },
-    [](auto &decl) requires requires { decl.type; } { return decl.type; }
-  });
-}
-type_decl strip_type(auto type) {
-  return type(overload {
-    [](typedef_decl_t &t)  { return strip_type(t.type); },
-    [](type_name_t    &t)  { return strip_type(t.type); },
-    [&](auto &)            { return type; }
-  });
-}
-static bool operator==(type_decl lhs, type_decl rhs) {
-  return visit(strip_type(lhs), strip_type(rhs), overload {
-    [](pointer_t &lhs, pointer_t &rhs) { return lhs.type == rhs.type; },
-    [](type_name_t &lhs, type_name_t &rhs) {
-      return lhs.is_const == rhs.is_const && lhs.is_volatile == rhs.is_volatile
-            && lhs.is_restrict == rhs.is_restrict && lhs.type == rhs.type;
-    },
-    []<class T>(T &lhs, T &rhs) { return &lhs == &rhs; },
-    [](auto &, auto &) { return false; },
-  });
-}
-static bool is_incomplete_type(type_decl type) {
-  return strip_type(type)(overload {
-    [](narrow<structural_decl_t> auto &decl) -> bool { return !decl.definition; },
-    [](auto &) { return false; }
-  });
-}
+type_decl get_decl_type(decl decl);
+type_decl strip_type(tree::type_decl type);
+bool operator==(type_decl lhs, type_decl rhs);
+static bool operator==(variable lhs, variable rhs) { return lhs.get_data() == rhs.get_data(); }
+bool is_incomplete_type(type_decl type);
 /* integer promotions are applied only:
  * as part of usual arithmetic conversions (tree-trait.hpp::usual_arith_conv)
  * as part of default argument promotions
@@ -60,13 +35,9 @@ template<narrow<integer_type_t> Tree> integer_type promote_int(Tree type) {
   if(type.rank < int_type_t::rank) return int_type_node;
   else return type_node<Tree>;
 }
-
-static type_decl promote(type_decl type) {
-  return type(overload {
-    [](narrow<integer_type_t> auto &type) -> type_decl { return promote_int(type); },
-    [&](auto &) -> type_decl { return type;}
-  });
-}
+bool operator==(tree::op lhs, tree::op rhs);
+static tree::type_decl type(tree::mov mov) {  return mov->src->type; }
+type_decl promote(type_decl type);
 // 6.3.1.8 Usual arithmetic conversions
 static type_decl usual_arith_conv(auto lhs, auto rhs) {
   auto one_is = []<class T>(T) {

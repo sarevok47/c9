@@ -55,7 +55,7 @@ tree::expression parser::primary_expression() {
       auto v = lex::interpret_nc(nc, stat);
       return visit(v, overload {
         [&](lex::integer int_) -> tree::expression {
-          uint64_t value;
+          uint64_t value{};
           if(stat == lex::interpret_status::out_of_range)
             error(loc, {}, "integer literal is too large to be represented in any integer type");
           else

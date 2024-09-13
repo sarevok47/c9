@@ -129,6 +129,12 @@ public:
   bool operator==(auto x) const {
     return index_ == indexof(x) && (decltype(x) &) *this == x;
   }
+  bool operator==(variant rhs) {
+    return visit(*this, rhs, [](auto &&lhs, auto &&rhs) { return lhs == rhs; });
+  }
+  bool operator==(variant rhs) const {
+    return visit(*this, rhs, [](auto &&lhs, auto &&rhs) { return lhs == rhs; });
+  }
 
   template<class U> bool is() { return index() == indexof<U>(); }
 
@@ -219,7 +225,6 @@ ALWAYS_INLINE decltype(auto) visit(auto &&v1, auto &&v2, auto &&f) {
   return tab[v1.index()][v2.index()]((decltype(v1)) v1, (decltype(v2)) v2, (decltype(f)) f);
 #endif
 }
-
 
 template<class T> constexpr bool is(auto &&v) {
   return v.index() == v.template indexof<T>();
