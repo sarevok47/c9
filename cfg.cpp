@@ -41,16 +41,17 @@ struct cfg_stream {
 };
 
 cfg_stream control_flow_graph::cfg() { return cfg_stream{*this}; }
-tree::op control_flow_graph::construct(tree::expression expr) {
-  return last_op = expr(overload {
-    [](auto &) -> tree::op {},
-    [&](tree::int_cst_expression_t &int_) -> tree::op {
+
+tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr) {
+  return expr(overload {
+    [](auto &) -> tree::expression {},
+    [&](tree::int_cst_expression_t &int_) -> tree::expression {
       return tree::cst{{.data = (__uint128_t) int_.value}};
     },
-    [&](tree::float_cst_expression_t &float_) -> tree::op {
+    [&](tree::float_cst_expression_t &float_) -> tree::expression {
       return tree::cst{{.data = (long double) float_.value}};
     },
-    [&](tree::decl_expression_t &expr) -> tree::op {
+    [&](tree::decl_expression_t &expr) -> tree::expression {
       if(auto var = (tree::variable) expr.declref) {
         if(var->is_global) {
           last_bb->use.emplace(var);
@@ -67,18 +68,27 @@ tree::op control_flow_graph::construct(tree::expression expr) {
         return fun;
       c9_assert(0);
     },
-    [&](tree::assign_expression_t &assign) {
+    [&](tree::assign_expression_t &assign) -> tree::expression {
       auto dst = construct(assign.lhs);
-      auto src = construct(assign.rhs);
+      auto src = construct_expr_no_op(assign.rhs);
       last_bb->add_assign(src, dst);
       return dst;
     },
-    [&](tree::binary_expression_t &b) {
-      b.lhs = construct(b.lhs);
-      b.rhs = construct(b.rhs);
+    [&](tree::binary_expression_t &b) -> tree::expression {
+      b.lhs = construct_expr_no_op(b.lhs);
+      b.rhs = construct_expr_no_op(b.rhs);
+      if(tree::op(b.lhs) && tree::op(b.rhs))
+        return expr;
       return last_bb->add_assign(expr, make_tmp());
     }
   });
+}
+tree::op control_flow_graph::construct(tree::expression expr) {
+  if(auto op = tree::op(expr = construct_expr_no_op(expr)))
+    last_op = op;
+  else
+    last_op = last_bb->add_assign(expr, make_tmp());
+  return last_op;
 }
 void control_flow_graph::construct(tree::statement stmt) {
   stmt(overload {
@@ -111,7 +121,7 @@ void control_flow_graph::construct(tree::statement stmt) {
         last_bb->add_assign(var.definition, tree::variable(stmt));
     },
     [&]<narrow<tree::expression_t> T>(T &) {
-      construct(tree::expression{tree::tree_value<T>(stmt)});
+      construct_expr_no_op(tree::expression{tree::tree_value<T>(stmt)});
     },
     [&](tree::compound_statement_t &stmts) { for(auto stmt : stmts) construct(stmt); },
   });

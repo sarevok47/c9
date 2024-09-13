@@ -70,6 +70,7 @@ class control_flow_graph {public:
   friend struct cfg_stream;
   struct cfg_stream cfg();
 
+  tree::expression construct_expr_no_op(tree::expression expr);
   tree::op construct(tree::expression expr);
   void construct(tree::statement stmt);
 
