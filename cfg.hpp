@@ -5,7 +5,8 @@
 #include "tree.hpp"
 #include "tree-trait.hpp"
 #include "simple.hpp"
-namespace c9 { namespace tree { static bool operator<(tree::op lhs, tree::op rhs) { return lhs.get_data() < rhs.get_data();  }} }
+#include "flat-map.hpp"
+namespace c9 { namespace tree { static bool operator<(tree::op lhs, tree::op rhs) { return lhs == rhs;  }} }
 namespace c9 { namespace cfg {
 void tree_dump(FILE *out, tree::statement tree);
 struct basic_block {
@@ -13,13 +14,16 @@ struct basic_block {
   std::vector<tree::statement> insns;
 
   std::set<basic_block *> preds, succs;
-  std::set<tree::op> def, use;
+  flat_map<tree::variable, std::pair<tree::phi, size_t>> phis;
+  std::vector<tree::op> def, use;
+
 
   basic_block *dominator{};
 
   basic_block &push(basic_block bb) { return *(next = new auto{mov(bb)}); }
   void add_insn(tree::statement insn);
   tree::op add_assign(tree::expression insn, tree::op dst);
+  void add_pred(basic_block *bb);
 
   basic_block *step() { return next; }
 
@@ -34,7 +38,7 @@ struct basic_block {
 
   void dump(FILE *out);
 
-  void search_def_for_phi(tree::ssa_variable, std::set<tree::op> &out);
+  void search_def_for_phi(tree::variable var, flat_set<tree::op> &out);
   void place_phi(tree::ssa_variable);
 
   void visit_dominators(auto &&f) {

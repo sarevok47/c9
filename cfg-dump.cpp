@@ -64,10 +64,18 @@ void basic_block::dump(FILE *out) {
     tree_dump(out, use);
     fprint(out, " ");
   }
+  fprint(out, "\n\t // preds: ");
+  for(auto pred : this->preds)
+    fprint(out, "bb_{} ", pred->i);
+  fprint(out, "\n\t // succs: ");
+  for(auto succ : this->succs)
+    fprint(out, "bb_{} ", succ->i);
   if(dominator)
      fprintln(out, "\n\t // dominator: bb_{}", dominator->i);
-  else
-     fprintln(out, "");
+  fprintln(out, "");
+
+  for(auto phi : phis)
+    tree_dump(out, tree::mov{{.src = phi.value.first, .dst = tree::ssa_variable{{ .var = phi.key, .ssa_n = phi.value.second}} }});
   for(auto insn : insns)
     tree_dump(out, insn);
 }

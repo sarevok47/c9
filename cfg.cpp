@@ -2,33 +2,48 @@
 #include "tree-trait.hpp"
 
 namespace c9 { namespace cfg {
-void basic_block::search_def_for_phi(tree::ssa_variable ssa, std::set<tree::op> &out) {
+void basic_block::search_def_for_phi(tree::variable var, flat_set<tree::op> &out) {
   for(auto elt : def)
-    if(tree::ssa_variable(elt) && tree::ssa_variable(elt)->var == ssa->var) {
+    if(tree::ssa_variable(elt) && tree::ssa_variable(elt)->var == var) {
       out.emplace(tree::ssa_variable(elt));
       return;
     }
 
 
   for(auto pred : preds)
-    pred->search_def_for_phi(ssa, out);
+    pred->search_def_for_phi(var, out);
 }
 void basic_block::place_phi(tree::ssa_variable ssa) {
-  std::set<tree::op> phi_ops;
+  flat_set<tree::op> phi_ops = { };
+  for(auto elt : def)
+    if(tree::ssa_variable(elt) && tree::ssa_variable(elt)->var == ssa->var) {
+      phi_ops.emplace(tree::ssa_variable(elt));
+      break;
+    }
   for(auto pred : preds)
-    pred->search_def_for_phi(ssa, phi_ops);
+    pred->search_def_for_phi(ssa->var, phi_ops);
 
-  if(phi_ops.size() > 1)
-    add_assign(tree::phi{{.elts = mov(phi_ops)}}, ssa);
+  auto &phi = phis[ssa->var];
+  if(phi.first)
+    phi.first->elts.append(phi_ops);
+  else
+    phi = {tree::phi{{.elts = mov(phi_ops)}}, ssa->ssa_n };
 }
 void basic_block::add_insn(tree::statement insn) { insns.emplace_back(insn);  }
 tree::op basic_block::add_assign(tree::expression insn, tree::op dst) {
   if(auto ssa = (tree::ssa_variable) dst)
     ssa->ssa_n = ++ssa->var->ssa_count;
 
-  def.emplace(dst);
+  if(!std::ranges::any_of(def, _ == dst))
+    def.emplace_back(dst);
   add_insn(tree::mov{{.src = insn, .dst = dst }});
   return dst;
+}
+void basic_block::add_pred(basic_block *bb) {
+  preds.emplace(bb);
+  for(auto phi : phis)
+    bb->search_def_for_phi(phi.key, phi.value.first->elts);
+
 }
 struct cfg_stream {
   control_flow_graph &cfg;
@@ -54,14 +69,16 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
     [&](tree::decl_expression_t &expr) -> tree::expression {
       if(auto var = (tree::variable) expr.declref) {
         if(var->is_global) {
-          last_bb->use.emplace(var);
+          if(!std::ranges::any_of(last_bb->use, _ == var))
+            last_bb->use.emplace_back(var);
           return var;
         }
 
         tree::ssa_variable ssa{{ .var = var, .ssa_n = var->ssa_count }};
-        size_t sz = last_bb->use.size();
-        last_bb->use.emplace(ssa);
-        if(sz != last_bb->use.size()) last_bb->place_phi(ssa);
+        if(!std::ranges::any_of(last_bb->use, _ == ssa)) {
+          last_bb->use.emplace_back(ssa);
+          last_bb->place_phi(ssa);
+        }
         return ssa;
       }
       if(auto fun = (tree::function) expr.declref)
@@ -109,12 +126,13 @@ void control_flow_graph::construct(tree::statement stmt) {
     [&](tree::for_statement_t &for_) {
       basic_block *cond_bb, *loop_body, *loop_finish;
       tree::op cond;
+
       cfg() >> for_.clause     >> for_.cond >> cond >> cond_bb
             >> add_bb(last_bb) >> loop_body >> for_.body >> for_.step >> loop_finish
             >> loop_finish->jump(*cond_bb)
             >> cond_bb->br(cond, *loop_body, add_bb(cond_bb));
 
-      cond_bb->preds.emplace(loop_finish);
+      cond_bb->add_pred(loop_finish);
     },
     [&](tree::variable_t &var) {
       if(var.definition)
