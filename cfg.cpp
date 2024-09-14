@@ -27,7 +27,7 @@ void basic_block::place_phi(tree::ssa_variable ssa) {
   if(phi.first)
     phi.first->elts.append(phi_ops);
   else
-    phi = {tree::phi{{.elts = mov(phi_ops)}}, ssa->ssa_n };
+    phi = {tree::phi{{.elts = mov(phi_ops)}},/* ssa->ssa_n*/ ssa->ssa_n = ++ssa->var->ssa_count  };
 }
 void basic_block::add_insn(tree::statement insn) { insns.emplace_back(insn);  }
 tree::op basic_block::add_assign(tree::expression insn, tree::op dst) {
