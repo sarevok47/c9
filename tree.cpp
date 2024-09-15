@@ -1,5 +1,5 @@
 #include "tree-trait.hpp"
-
+#include "token.hpp"
 namespace c9 { namespace tree {
 bool operator==(type_decl lhs, type_decl rhs) {
   return visit(strip_type(lhs), strip_type(rhs), overload {
@@ -45,6 +45,79 @@ bool operator==(tree::op lhs, tree::op rhs) {
     [](tree::variable_t &lhs, tree::variable_t &rhs) { return &lhs == &rhs; },
     [](tree::ssa_variable_t lhs, tree::ssa_variable_t rhs) { return lhs.var.get_data() == rhs.var.get_data() && lhs.ssa_n == rhs.ssa_n; },
     [](auto &, auto &) { return false; }
+  });
+}
+cst_t do_cast(cst_t value, arithmetic_type type) {
+  cst_t r;
+  visit(value.data, [&](auto value) {
+    type(overload {
+      [](auto) { c9_assert(0); },
+      [&](float_type_t)       { r.data = (long double) (float) value; },
+      [&](double_type_t)      { r.data = (long double) (double) value; },
+      [&](long_double_type_t) { r.data = (long double) value; },
+      [&](char_type_t)           { r.data = (__uint128_t) (char) value; },
+      [&](unsigned_char_type_t)  { r.data = (__uint128_t) (unsigned char) value; },
+      [&](signed_char_type_t)    { r.data = (__uint128_t) (signed char) value; },
+      [&](int_type_t)           { r.data = (__uint128_t) (int) value; },
+      [&](unsigned_int_type_t)  { r.data = (__uint128_t) (unsigned int) value; },
+      [&](long_type_t)           { r.data = (__uint128_t) (long) value; },
+      [&](unsigned_long_type_t)  { r.data = (__uint128_t) (unsigned long) value; },
+      [&](long_long_type_t)           { r.data = (__uint128_t) (long) value; },
+      [&](unsigned_long_long_type_t)  { r.data = (__uint128_t) (unsigned long long) value; },
+    });
+  });
+  return r;
+}
+
+cst tree_fold(expression expr, sv &err) {
+  return expr(overload {
+    [](auto &) -> cst { return {}; },
+    [&](int_cst_expression_t int_) -> cst {
+       return do_cast(cst_t{ .data = (__uint128_t) int_.value}, (integer_type) int_.type);
+    },
+    [&](float_cst_expression_t float_) -> cst {
+       return do_cast(cst_t{ .data = float_.value}, (float_type) float_.type);
+    },
+    [&](cast_expression_t cast_) -> cst {
+      if(auto cst = tree_fold(cast_.cast_from, err)) {
+        *cst = do_cast(*cst, (arithmetic_type) cast_.cast_to);
+        return cst;
+      } else
+        return cst;
+    },
+    [&](binary_expression_t binary) -> cst {
+      auto lhs = tree_fold(binary.lhs, err), rhs = tree_fold(binary.rhs, err);
+      if(!lhs || !rhs) return {};
+
+      *lhs = do_cast(*lhs, (arithmetic_type) binary.type);
+      *rhs = do_cast(*rhs, (arithmetic_type) binary.type);
+
+      opt<cst_t> r;
+      bool signed_ = binary.type.is_narrow<signed_integral_type_t>();
+      // It's the most horrible code in the whole codebase
+      lex::binary_op_tab(for_each([&]<class T>(T tok) {
+        if(tok.key == binary.op)
+          visit(lhs->data, rhs->data, [&](auto lhs, auto rhs) {
+            if constexpr(requires { tok.f(lhs, rhs); }) {
+              if constexpr(lex::is_relational(T{}.key) || T{}.key == "||"_s || T{}.key == "&&"_s) {
+                if(std::is_integral_v<decltype(lhs)> && signed_)
+                  r = cst_t{.data = (__uint128_t) tok.f((__int128_t) lhs, (__int128_t)  rhs) };
+                else
+                  r = cst_t{.data = (__uint128_t) tok.f(lhs, rhs) };
+              } else if((T{}.key == "/"_s || T{}.key == "%"_s) && rhs == 0)
+                err = "divide by 0 in constant expression";
+              else
+                r = cst_t{.data = tok.f(lhs, rhs) };
+            }
+          });
+      }));
+
+      // don't forget to cast result code into the target type
+      if(r)
+        return *r = do_cast(*r, (arithmetic_type) binary.type);
+
+      return {};
+    }
   });
 }
 }}

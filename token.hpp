@@ -201,7 +201,7 @@ template<class Key, class F> struct binop {
 
 constexpr auto binary_op_tab = tuple(
 #define _(op, prec)  /*std::pair*/ binop { \
-  #op ## _s, [](auto x, auto y) { return x op y; }, prec \
+  #op ## _s, [](auto x, auto y) requires requires { x op y; } { return x op y; }, prec \
 }
   _(&, binary_prec::bitand_),
   _(*, binary_prec::factor),

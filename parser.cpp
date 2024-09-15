@@ -51,7 +51,7 @@ tree::expression parser::primary_expression() {
     },
     [&](lex::numeric_constant nc) {
       consume();
-      lex::interpret_status stat;
+      lex::interpret_status stat{};
       auto v = lex::interpret_nc(nc, stat);
       return visit(v, overload {
         [&](lex::integer int_) -> tree::expression {

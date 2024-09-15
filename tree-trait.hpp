@@ -166,6 +166,7 @@ template<class L, class R> bool is_compatible(lex::assign_tok op, L &lhs, R &rhs
     }
   });
 }
-
+cst_t do_cast(cst_t value, arithmetic_type type);
+cst tree_fold(expression expr, sv &err);
 
 }}

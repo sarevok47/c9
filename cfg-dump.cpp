@@ -14,6 +14,9 @@ void tree_dump(FILE *out, tree::statement tree) {
     [&](tree::variable_t &var) {
       fprint(out, "{}", var.name);
     },
+    [&](tree::cst_t cst) {
+      visit(cst.data, [&](auto v) { fprint(out, "{}", v); });
+    },
     [&](tree::temporary_t tmp) {
       fprint(out, "__temp_{}", tmp.idx);
     },

@@ -58,6 +58,9 @@ struct cfg_stream {
 cfg_stream control_flow_graph::cfg() { return cfg_stream{*this}; }
 
 tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr) {
+  sv dummy;
+  if(auto cst = tree_fold(expr, dummy))
+    return cst;
   return expr(overload {
     [](auto &) -> tree::expression {},
     [&](tree::int_cst_expression_t &int_) -> tree::expression {
