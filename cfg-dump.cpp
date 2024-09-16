@@ -58,15 +58,20 @@ void tree_dump(FILE *out, tree::statement tree) {
 void basic_block::dump(FILE *out) {
   fprintln(out, "bb_{}:", i);
   fprint(out, "\t // defs: ");
-  for(auto def : this->def) {
-    tree_dump(out, def);
-    fprint(out, " ");
-  }
+  def.visit_each([&](auto &def) {
+    for(auto def : def) {
+      tree_dump(out, def);
+      fprint(out, " ");
+    }
+  });
+
   fprint(out, "\n\t // uses: ");
-  for(auto use : this->use) {
-    tree_dump(out, use);
-    fprint(out, " ");
-  }
+  use.visit_each([&](auto &use) {
+    for(auto use : use) {
+      tree_dump(out, use);
+      fprint(out, " ");
+    }
+  });
   fprint(out, "\n\t // preds: ");
   for(auto pred : this->preds)
     fprint(out, "bb_{} ", pred->i);

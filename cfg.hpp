@@ -8,6 +8,68 @@
 #include "flat-map.hpp"
 namespace c9 { namespace tree { static bool operator<(tree::op lhs, tree::op rhs) { return lhs == rhs;  }} }
 namespace c9 { namespace cfg {
+template<class T> struct count_map {
+  flat_map<T, size_t> storage;
+public:
+  struct iterator {
+    decltype(storage.begin()) it{};
+
+    iterator &operator++() { return ++it, *this; }
+    const T &operator*() { return it->key; }
+
+    bool operator==(iterator rhs) { return it == rhs.it; }
+
+    iterator(auto it) : it{it} {}
+  };
+
+  iterator begin() { return storage.begin(); }
+  iterator end() {   return storage.end(); }
+
+  iterator find(T value) { return storage.find(value); }
+
+  void insert(T value) { ++storage[value]; }
+  void erase(T value) {
+    auto p = storage.find(value);
+    if(p != storage.end())
+      if(!--p->value) storage.erase(p);
+  }
+};
+class defusechain {
+  std::tuple<
+            count_map<tree::variable>,
+            count_map<tree::ssa_variable>,
+            count_map<tree::temporary>
+            > storage;
+
+  consteval static size_t get_idx(auto &) = delete;
+  consteval static size_t get_idx(type_<tree::variable_t>)     { return 0; }
+  consteval static size_t get_idx(type_<tree::ssa_variable_t>) { return 1; }
+  consteval static size_t get_idx(type_<tree::temporary_t>)    { return 2; }
+
+  void visit(tree::op op, auto &&f) {
+    return op(overload {
+      [&](auto &) { c9_assert(0); },
+      [&]<class T>(T &value) requires requires { get_idx(type_c<T>); } { f(value, std::get<get_idx(type_c<T>)>(storage)); }
+    });
+  }
+public:
+  template<class T> auto &map() { return std::get<get_idx(type_c<T>)>(storage); }
+  void insert(tree::op op) { visit(op, [&](auto &&value, auto &map) { map.insert(value); }); }
+  void erase(tree::op op) {  visit(op, [&](auto &&value, auto &map) { map.erase(value); }); }
+  tree::op find(tree::op op) {
+    tree::op r;
+    visit(op, [&](auto &&value, auto &map) {
+      auto p = map.find(value);
+      if(p != map.end()) r = *p;
+    });
+    return r;
+  }
+  void visit_each(auto &&f) {
+    f(std::get<0>(storage));
+    f(std::get<1>(storage));
+    f(std::get<2>(storage));
+  }
+};
 void tree_dump(FILE *out, tree::statement tree);
 struct basic_block {
   size_t i{};
@@ -15,8 +77,7 @@ struct basic_block {
 
   std::set<basic_block *> preds, succs;
   flat_map<tree::variable, std::pair<tree::phi, size_t>> phis;
-  std::vector<tree::op> def, use;
-
+  defusechain def, use;
 
   basic_block *dominator{};
 
@@ -38,7 +99,7 @@ struct basic_block {
 
   void dump(FILE *out);
 
-  void search_def_for_phi(tree::variable var, flat_set<tree::op> &out);
+  void search_def_for_phi(tree::variable var, flat_set<tree::op> &out, basic_block *stop);
   void place_phi(tree::ssa_variable);
 
   void visit_dominators(auto &&f) {
@@ -51,6 +112,22 @@ struct basic_block {
 private:
   basic_block *next{};
 };
+
+struct cfg_walker {
+  basic_block &entry;
+
+  std::set<basic_block *> bb_stack;
+
+
+  void operator()(auto &&f, basic_block &bb) {
+    size_t sz = bb_stack.size();
+    if(bb_stack.emplace(&bb), sz == bb_stack.size())
+      return;
+    f(bb);
+    for(auto succ : bb.succs) (*this)(f, *succ);
+  }
+  void operator()(auto &&f) { (*this)(f, entry); }
+};
 class control_flow_graph {public:
   driver &d;
   size_t nlabel = 1, ntmp{};
@@ -62,7 +139,6 @@ class control_flow_graph {public:
   basic_block &add_bb(auto ...preds) {
     last_bb = &last_bb->push({nlabel++, preds...});
     ((preds->succs.emplace(last_bb)), ...);
-    ((last_bb->succs.emplace(preds)), ...);
 
     if constexpr(sizeof...(preds) == 1)
       last_bb->dominator = (preds, ...);

@@ -57,6 +57,7 @@ enum class interpret_status {
 
 
 static integer interpret_integer(numeric_constant nc, interpret_status &ok) {
+  ok = {};
   auto p = nc.begin();
 
 
@@ -80,7 +81,6 @@ static integer interpret_integer(numeric_constant nc, interpret_status &ok) {
     ok = interpret_status::out_of_range;
 
 
-
   integer_suffix isuffix;
   scan_impl(p = suffix, nc.end(), isuffix, variant_types(isuffix), 0_c, ""_s);
 
@@ -92,14 +92,14 @@ static integer interpret_integer(numeric_constant nc, interpret_status &ok) {
 }
 
 static floating interpret_floating(numeric_constant nc, interpret_status &ok) {
+  ok = {};
   auto p = nc.begin();
   bool hex = *p == '0' && p + 1 != nc.end() && (p[1] == 'x' || p[1] == 'X');
 
 
   if(hex && nc.exponent)
     ok = interpret_status::exponent_missing;
-  else
-    ok = interpret_status::invalid_suffix;
+
   floating r{};
 
   auto [suffix, ec] = std::from_chars(p, nc.end(), r.value);

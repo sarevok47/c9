@@ -29,7 +29,9 @@ static op find_expression_in_range(auto begin, auto end, expression expr) {
 static void cse(basic_block &bb) {
   for(auto insn : bb.insns | iter_range)
     if(auto move = (tree::mov) *insn) {
-      if(auto op = find_expression_in_range(bb.insns.begin(), insn, move->src))
+      if(tree::op(move->src))
+        continue;
+      else if(auto op = find_expression_in_range(bb.insns.begin(), insn, move->src))
         move->src = op;
       else
         bb.visit_dominators([&](basic_block &bb) {
@@ -39,7 +41,8 @@ static void cse(basic_block &bb) {
     }
 }
 void cse(cfg::control_flow_graph &cfg) {
-  for(basic_block *bb = &cfg.entry; bb; bb = bb->step())  cse(*bb);
+  cfg_walker walk{cfg.entry};
+  walk([](basic_block &bb) { cse(bb); });
 }
 
 }}

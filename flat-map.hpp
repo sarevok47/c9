@@ -19,6 +19,8 @@ public:
 
   void push_back(key_value kv) { storage.push_back(mov(kv)); }
 
+  void erase(auto p) { storage.erase(p); }
+
   Value &operator[](const Key &key) {
     if(auto p = find(key); p == end()) {
       push_back({key, {}});

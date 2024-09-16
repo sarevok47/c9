@@ -130,6 +130,7 @@ tree::default_ =  [] {
         [&](tree::function_t &fun) {
           cfg::control_flow_graph cfg{d};
           cfg.construct(fun.definition);
+          c9::tree_opt::constprop(cfg);
           c9::tree_opt::cse(cfg);
           for(cfg::basic_block *bb = &cfg.entry; bb; bb = bb->step()) {
             bb->dump(stderr);
