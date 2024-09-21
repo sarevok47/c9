@@ -132,11 +132,34 @@ tree::default_ =  [] {
           cfg.construct(fun.definition);
           c9::tree_opt::constprop(cfg);
           c9::tree_opt::cse(cfg);
+
+          tree::ssa_variable tab[cfg.nssa];
+          cfg.collect_phi_operands(tab);
+
+          cfg::cfg_walker walk{cfg.entry};
+
+          size_t tmps[cfg.ntmp], vars[cfg.nssa];
+
+          std::fill_n(tmps, cfg.ntmp, 0);
+          std::fill_n(vars, cfg.nssa, 0);
+
+          x86::codegen codegen {tab, tmps, vars};
+
+          codegen.gen(cfg.entry);
           for(cfg::basic_block *bb = &cfg.entry; bb; bb = bb->step()) {
             bb->dump(stderr);
            }
+
+           fprintln(stderr, "\n\n");
+
+
+
+
         }
+
       });// tree::dumper{stderr}.dump(tree);
+
+
     } else break;
 		//tree::dumper{stderr}.dump(tree);
 

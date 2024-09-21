@@ -22,7 +22,7 @@ void constprop(control_flow_graph &cfg) {
 
     for(auto phi : bb.phis)
       if(phi.value.first->elts.size() == 1)
-        var_tab[tree::ssa_variable{{.var = phi.key, .ssa_n = phi.value.second}}] = *phi.value.first->elts.begin();
+        var_tab[phi.value.second] = *phi.value.first->elts.begin();
 
     for(auto insn : bb.insns)
       if(auto mov = (tree::mov) insn) {

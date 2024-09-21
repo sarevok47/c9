@@ -400,12 +400,12 @@ TREE_DEF(identifier_token, : base_t { location_t loc; string str; });
 // IR
 TREE_DEF(mov, : statement_t { expression src; op dst; });
 TREE_DEF(temporary, : op_t { size_t idx; });
-TREE_DEF(ssa_variable, : op_t { tree::variable var; size_t ssa_n; });
+TREE_DEF(ssa_variable, : op_t { tree::variable var; size_t ssa_n, ssa_tab_n; });
 TREE_DEF(cst, : op_t {  variant<__uint128_t, long double> data; });
 
 TREE_DEF(phi,  : expression_t { flat_set<op> elts; });
 TREE_DEF(jump, : statement_t { cfg::basic_block &target; });
-TREE_DEF(br,   : statement_t { tree::expression cond; cfg::basic_block &true_, &false_; });
+TREE_DEF(br,   : statement_t { tree::op cond; cfg::basic_block &true_, &false_; });
 TREE_DEF(ssa,  : decl_t      { tree::variable var; size_t ssa_count; });
 
 

@@ -83,7 +83,7 @@ void basic_block::dump(FILE *out) {
   fprintln(out, "");
 
   for(auto phi : phis)
-    tree_dump(out, tree::mov{{.src = phi.value.first, .dst = tree::ssa_variable{{ .var = phi.key, .ssa_n = phi.value.second}} }});
+    tree_dump(out, tree::mov{{.src = phi.value.first, .dst = phi.value.second }});
   for(auto insn : insns)
     tree_dump(out, insn);
 }

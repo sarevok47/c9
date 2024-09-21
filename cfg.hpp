@@ -72,11 +72,12 @@ public:
 };
 void tree_dump(FILE *out, tree::statement tree);
 struct basic_block {
+  class control_flow_graph &cfg;
   size_t i{};
   std::vector<tree::statement> insns;
 
   std::set<basic_block *> preds, succs;
-  flat_map<tree::variable, std::pair<tree::phi, size_t>> phis;
+  flat_map<tree::variable, std::pair<tree::phi, tree::ssa_variable>> phis;
   defusechain def, use;
 
   basic_block *dominator{};
@@ -92,7 +93,7 @@ struct basic_block {
     add_insn(tree::jump{{.target = target}});
     return *this;
   }
-  basic_block &br(tree::expression cond, basic_block &true_bb, basic_block &false_bb) {
+  basic_block &br(tree::op cond, basic_block &true_bb, basic_block &false_bb) {
     add_insn(tree::br{{.cond = cond, .true_ = true_bb, .false_ = false_bb}});
     return *this;
   }
@@ -107,8 +108,8 @@ struct basic_block {
       f(*bb);
   }
 
-  basic_block() = default;
-  basic_block(size_t i, std::same_as<basic_block *> auto ...preds) : i{i}, preds{preds...} {}
+  basic_block(control_flow_graph &cfg) : cfg{cfg} {}
+  basic_block(control_flow_graph &cfg, size_t i, std::same_as<basic_block *> auto ...preds) : cfg{cfg}, i{i}, preds{preds...} {}
 private:
   basic_block *next{};
 };
@@ -130,14 +131,18 @@ struct cfg_walker {
 };
 class control_flow_graph {public:
   driver &d;
-  size_t nlabel = 1, ntmp{};
-  basic_block entry, *last_bb = &entry;
+  size_t nlabel = 1, ntmp{}, nssa{};
+  basic_block entry{*this}, *last_bb = &entry;
   tree::op last_op;
 
-  tree::op make_tmp() { return tree::temporary{{.idx = ntmp++ }}; }
+  tree::op make_tmp(tree::type_decl type) {
+    tree::temporary_t tmp{.idx = ntmp++};
+    tmp.type = type;
+    return tmp;
+  }
 
   basic_block &add_bb(auto ...preds) {
-    last_bb = &last_bb->push({nlabel++, preds...});
+    last_bb = &last_bb->push({*this, nlabel++, preds...});
     ((preds->succs.emplace(last_bb)), ...);
 
     if constexpr(sizeof...(preds) == 1)
@@ -153,6 +158,8 @@ class control_flow_graph {public:
   tree::expression construct_expr_no_op(tree::expression expr);
   tree::op construct(tree::expression expr);
   void construct(tree::statement stmt);
+
+  void collect_phi_operands(tree::ssa_variable tab[]);
 
   void dump();
 };

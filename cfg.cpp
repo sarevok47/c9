@@ -20,7 +20,7 @@ void basic_block::place_phi(tree::ssa_variable ssa) {
   auto &phi = phis[ssa->var];
 
   auto p = std::find_if(phi_ops.begin(), phi_ops.end(), [&](auto op) {
-    return tree::ssa_variable(op) && tree::ssa_variable(op)->ssa_n == (phi.first ? phi.second : ssa->ssa_n + 1);
+    return tree::ssa_variable(op) && tree::ssa_variable(op)->ssa_n == (phi.first ? phi.second->ssa_n : ssa->ssa_n + 1);
   });
 
   if(p != phi_ops.end())
@@ -28,12 +28,16 @@ void basic_block::place_phi(tree::ssa_variable ssa) {
 
   if(phi.first)
     phi.first->elts.append(phi_ops);
-  else
-    phi = {tree::phi{{.elts = mov(phi_ops)}},/* ssa->ssa_n*/ ssa->ssa_n = ++ssa->var->ssa_count  };
+  else {
+    ++cfg.nssa;
+    ssa->ssa_n = ++ssa->var->ssa_count;
+    phi = {tree::phi{{.elts = mov(phi_ops)}}, ssa.cpy()};
+  }
 }
 void basic_block::add_insn(tree::statement insn) { insns.emplace_back(insn);  }
 tree::op basic_block::add_assign(tree::expression insn, tree::op dst) {
   if(auto ssa = (tree::ssa_variable) dst)
+    ++cfg.nssa,
     ssa->ssa_n = ++ssa->var->ssa_count;
 
   def.insert(dst);
@@ -62,6 +66,7 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
   sv dummy;
   if(auto cst = tree_fold(expr, dummy))
     return cst;
+  expr->type = tree::strip_type(expr->type);
   return expr(overload {
     [](auto &) -> tree::expression {},
     [&](tree::int_cst_expression_t &int_) -> tree::expression {
@@ -77,7 +82,11 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
           return var;
         }
 
-        tree::ssa_variable ssa{{ .var = var, .ssa_n = var->ssa_count }};
+        auto ssa = [&] -> tree::ssa_variable {
+          tree::ssa_variable_t ssa{.var = var, .ssa_n = var->ssa_count, .ssa_tab_n = nssa};
+          ssa.type = expr.type;
+          return ssa;
+        }();
         if(!last_bb->use.find(ssa)) {
           last_bb->use.insert(ssa);
           last_bb->place_phi(ssa);
@@ -99,7 +108,7 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
       b.rhs = construct_expr_no_op(b.rhs);
       if(tree::op(b.lhs) && tree::op(b.rhs))
         return expr;
-      return last_bb->add_assign(expr, make_tmp());
+      return last_bb->add_assign(expr, make_tmp(b.type));
     }
   });
 }
@@ -107,7 +116,7 @@ tree::op control_flow_graph::construct(tree::expression expr) {
   if(auto op = tree::op(expr = construct_expr_no_op(expr)))
     last_op = op;
   else
-    last_op = last_bb->add_assign(expr, make_tmp());
+    last_op = last_bb->add_assign(expr, make_tmp(expr->type));
   return last_op;
 }
 void control_flow_graph::construct(tree::statement stmt) {
@@ -145,6 +154,14 @@ void control_flow_graph::construct(tree::statement stmt) {
       construct_expr_no_op(tree::expression{tree::tree_value<T>(stmt)});
     },
     [&](tree::compound_statement_t &stmts) { for(auto stmt : stmts) construct(stmt); },
+  });
+}
+
+void control_flow_graph::collect_phi_operands(tree::ssa_variable tab[]) {
+  cfg_walker{entry}([&](basic_block &bb) {
+    for(auto phis : bb.phis)
+      for(auto phi : phis.value.first->elts)
+        tab[tree::ssa_variable(phi)->ssa_tab_n] = phis.value.second;
   });
 }
 }}

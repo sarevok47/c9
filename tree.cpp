@@ -49,6 +49,7 @@ bool operator==(tree::op lhs, tree::op rhs) {
 }
 cst_t do_cast(cst_t value, arithmetic_type type) {
   cst_t r;
+  r.type = type;
   visit(value.data, [&](auto value) {
     type(overload {
       [](auto) { c9_assert(0); },
