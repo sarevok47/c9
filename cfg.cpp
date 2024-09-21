@@ -69,12 +69,6 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
   expr->type = tree::strip_type(expr->type);
   return expr(overload {
     [](auto &) -> tree::expression {},
-    [&](tree::int_cst_expression_t &int_) -> tree::expression {
-      return tree::cst{{.data = (__uint128_t) int_.value}};
-    },
-    [&](tree::float_cst_expression_t &float_) -> tree::expression {
-      return tree::cst{{.data = (long double) float_.value}};
-    },
     [&](tree::decl_expression_t &expr) -> tree::expression {
       if(auto var = (tree::variable) expr.declref) {
         if(var->is_global) {
@@ -109,6 +103,16 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
       if(tree::op(b.lhs) && tree::op(b.rhs))
         return expr;
       return last_bb->add_assign(expr, make_tmp(b.type));
+    },
+    [&](tree::unary_expression_t &u) -> tree::expression {
+      u.expr = construct_expr_no_op(u.expr);
+      if(tree::op(u.expr)) return expr;
+      return last_bb->add_assign(u, make_tmp(u.type));
+    },
+    [&](tree::function_call_t &fun_call) {
+      fun_call.calee = construct(fun_call.calee);
+      for(auto &arg : fun_call.args) arg = construct(arg);
+      return last_bb->add_assign(fun_call, make_tmp(fun_call.type));
     }
   });
 }

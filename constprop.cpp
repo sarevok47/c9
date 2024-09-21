@@ -31,6 +31,9 @@ void constprop(control_flow_graph &cfg) {
           [&](narrow<tree::op_t> auto &) {
             try_propagate(mov->src);
           },
+          [&](tree::unary_expression_t &unaryexpr) {
+            try_propagate(unaryexpr.expr);
+          },
           [&](tree::binary_expression_t &binexpr) {
             try_propagate(binexpr.lhs);
             try_propagate(binexpr.rhs);

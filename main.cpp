@@ -142,10 +142,11 @@ tree::default_ =  [] {
 
           std::fill_n(tmps, cfg.ntmp, 0);
           std::fill_n(vars, cfg.nssa, 0);
-
+/*
           x86::codegen codegen {tab, tmps, vars};
 
           codegen.gen(cfg.entry);
+      */
           for(cfg::basic_block *bb = &cfg.entry; bb; bb = bb->step()) {
             bb->dump(stderr);
            }

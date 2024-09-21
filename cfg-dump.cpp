@@ -1,18 +1,22 @@
 #include "cfg.hpp"
 
 namespace c9 { namespace cfg {
-void tree_dump(FILE *out, tree::type_decl tree) {}
 void tree_dump(FILE *out, tree::statement tree) {
-  if(!tree::expression(tree))
+  if(!tree::expression(tree) && !tree::type_decl(tree))
     fprint(out, "\t");
   visit(tree, overload {
     [&](tree::mov_t &mov) {
+      tree_dump(out, mov.dst->type);
+      fprint(out, " ");
       tree_dump(out, mov.dst);
       fprint(out, " = ");
       tree_dump(out, mov.src);
     },
     [&](tree::variable_t &var) {
       fprint(out, "{}", var.name);
+    },
+    [&](tree::function_t &fun) {
+      fprint(out, "{}", fun.name);
     },
     [&](tree::cst_t cst) {
       visit(cst.data, [&](auto v) { fprint(out, "{}", v); });
@@ -32,11 +36,23 @@ void tree_dump(FILE *out, tree::statement tree) {
       fprint(out, " ? bb_{} : bb_{}", br.true_.i, br.false_.i);
     },
     [&](tree::binary_expression_t &expr) {
-      tree_dump(out, expr.type);
       fprint(out, " ");
       tree_dump(out, expr.lhs);
       fprint(out, " {} ", visit(expr.op, [](auto s) { return s.c_str(); }));
       tree_dump(out, expr.rhs);
+    },
+    [&](tree::unary_expression_t &expr) {
+      fprint(out, "{}", visit(expr.op, [](auto s) { return s.c_str(); }));
+      tree_dump(out, expr.expr);
+    },
+    [&](tree::function_call_t &fun_call) {
+      tree_dump(out, fun_call.calee);
+      fprint(out, "(");
+      for(auto arg : fun_call.args | iter_range) {
+        tree_dump(out, *arg);
+        if(arg + 1 != fun_call.args.end()) fprint(out, ", ");
+      }
+      fprintln(out, ")");
     },
     [&](tree::phi_t phi) {
       fprint(out, "phi ");
@@ -47,11 +63,14 @@ void tree_dump(FILE *out, tree::statement tree) {
         --elt;
       }
     },
+    [&](narrow<tree::integer_type_t> auto &tree) {
+      fprint(out, "{}", tree.name);
+    },
     [&](auto &) {
       fprint(out, "{}", __PRETTY_FUNCTION__);
     }
   });
-  if(!tree::expression(tree) && !tree::op(tree))
+  if(!tree::expression(tree) && !tree::op(tree) && !tree::type_decl(tree))
     fprintln(out, "");
 }
 

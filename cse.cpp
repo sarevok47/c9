@@ -17,6 +17,9 @@ bool operator==(expression lhs, expression rhs) {
       }
       return r;
     },
+    [&](unary_expression_t lhs, unary_expression_t rhs) {
+      return lhs.op == rhs.op && lhs.expr == rhs.expr;
+    },
     [](auto &, auto &) {  return false; }
   });
 }
