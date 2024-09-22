@@ -311,14 +311,14 @@ tree::decl semantics::build_local_extern_decl(rich_location rl, id id, tree::dec
     [&](auto &decl) -> tree::decl requires requires { decl.scs; } {
       if(decl.type != type) {
         redecl_error(rl, id.name, node, "with different type");
-        return {};
+        return node;
       }
       if(decl.scs == "extern"_s)
         return node;
 
 
       redecl_error(rl, id.name, node, "with different storage class specifier ('{}' and 'extern')", sv_variant(decl.scs));
-      return node;;
+      return node;
     },
     [&](tree::empty_node_t) {
       return node = build_decl(rl, {.name = id.name, .level = 0}, type, "extern"_s, true);
@@ -360,15 +360,23 @@ tree::decl semantics::build_decl(rich_location rl, id id, tree::type_name type, 
 
     return decl([&](auto &tree) -> tree::decl {
       if constexpr(requires { tree.scs; }) {
-        if(tree.scs == "extern"_s && (scs != ""_s && scs != "extern"_s)) {
+        auto err = [&] {
           redecl_error(rl, id.name, decl, "with different storage class specifier ('{}' and '{}')", sv_variant(tree.scs), sv_variant(scs));
-          return {};
-        }
-        if(scs != "extern"_s) {
+          return tree::decl{};
+        };
+
+        if(tree.scs == "extern"_s && (scs != ""_s && scs != "extern"_s))
+          return err();
+        if(scs == "extern"_s && (tree.scs != ""_s && tree.scs != "extern"_s))
+          return err();
+        if(scs == "extern"_s || tree.scs == "extern"_s)
+          return decl;
+        if(dtype.is<tree::function_type_t>()) {
           scs_assign(tree.scs, scs);
           id.node->decl_implicit = false;
-        }
-        return decl;
+          return decl;
+        } else
+          return err();
       }
       c9_assert(0);
     });

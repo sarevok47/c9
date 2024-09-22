@@ -634,10 +634,11 @@ tree::decl parser::init_decl(decl_specifier_seq &dss, bool tail) {
   decl = build_decl({loc}, dector_name, dector_type, dss.storage_class);
   bool block_decl_accept = decl(overload {
     [&](tree::function_t &fun) {
+      if(dss.storage_class == "extern"_s) {
+        decl = {};  // reset decl to prevent redefinition statements in cfg construction
+        return !(*this <= ";"_s);
+      }
       bool body = !tail && *this <= ("{"_s, [&] {
-      if(fun.scs == "extern"_s)
-        error(peek_token().loc, {}, "external function definition is not allowed");
-
         scopes.push_scope<sema::fn_scope>({fun.type});
       tree::compound_statement_t compound;
       while(peek_token() && peek_token() != "}"_s)
@@ -652,6 +653,10 @@ tree::decl parser::init_decl(decl_specifier_seq &dss, bool tail) {
       return !body && !tail;
     },
     [&](tree::variable_t &var) {
+      if(dss.storage_class == "extern"_s) {
+        decl = {};  // reset decl to prevent redefinition statements in cfg construction
+        return !(*this <= ";"_s);
+      }
       if(*this <= "="_s) {
         auto init = initializer();
         if(get_common_type(lex::assign_tok{"="_s}, init->loc, strip_type(var.type), strip_type(init->type)))
