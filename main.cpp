@@ -146,7 +146,7 @@ tree::default_ =  [] {
           x86::codegen codegen {tab, tmps, vars};
 
           codegen.gen(cfg.entry);
-      */
+*/
           for(cfg::basic_block *bb = &cfg.entry; bb; bb = bb->step()) {
             bb->dump(stderr);
            }

@@ -31,7 +31,9 @@ void basic_block::place_phi(tree::ssa_variable ssa) {
   else {
     ++cfg.nssa;
     ssa->ssa_n = ++ssa->var->ssa_count;
-    phi = {tree::phi{{.elts = mov(phi_ops)}}, ssa.cpy()};
+    auto cpy = ssa.cpy();
+    def.insert(cpy);
+    phi = {tree::phi{{.elts = mov(phi_ops)}}, cpy};
   }
 }
 void basic_block::add_insn(tree::statement insn) { insns.emplace_back(insn);  }
