@@ -3,9 +3,9 @@
 
 namespace c9 { namespace cfg {
 void basic_block::search_def_for_phi(tree::variable var, flat_set<tree::op> &out, basic_block *stop) {
-  for(auto elt : def.map<tree::ssa_variable_t>())
-    if(elt->var == var) {
-      out.emplace(tree::op(elt)); return;
+  for(auto elt : def.map<tree::ssa_variable_t>().storage | rv::reverse)
+    if(elt.key->var == var) {
+      out.emplace(tree::op(elt.key)); return;
     }
 
   for(auto pred : preds) {
@@ -29,7 +29,7 @@ void basic_block::place_phi(tree::ssa_variable ssa) {
   if(phi.first)
     phi.first->elts.append(phi_ops);
   else {
-    ++cfg.nssa;
+    ssa->ssa_tab_n = ssa->var->ssa_tab_n = ++cfg.nssa;
     ssa->ssa_n = ++ssa->var->ssa_count;
     auto cpy = ssa.cpy();
     def.insert(cpy);
@@ -39,7 +39,7 @@ void basic_block::place_phi(tree::ssa_variable ssa) {
 void basic_block::add_insn(tree::statement insn) { insns.emplace_back(insn);  }
 tree::op basic_block::add_assign(tree::expression insn, tree::op dst) {
   if(auto ssa = (tree::ssa_variable) dst)
-    ++cfg.nssa,
+    ssa->ssa_tab_n = ssa->var->ssa_tab_n = ++cfg.nssa,
     ssa->ssa_n = ++ssa->var->ssa_count;
 
   def.insert(dst);
@@ -79,7 +79,7 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
         }
 
         auto ssa = [&] -> tree::ssa_variable {
-          tree::ssa_variable_t ssa{.var = var, .ssa_n = var->ssa_count, .ssa_tab_n = nssa};
+          tree::ssa_variable_t ssa{.var = var, .ssa_n = var->ssa_count, .ssa_tab_n = var->ssa_tab_n};
           ssa.type = expr.type;
           return ssa;
         }();

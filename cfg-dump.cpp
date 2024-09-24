@@ -25,7 +25,7 @@ void tree_dump(FILE *out, tree::statement tree) {
       fprint(out, "__temp_{}", tmp.idx);
     },
     [&](tree::ssa_variable_t &var) {
-      fprint(out, "__ssa_{}_{}", var.var->name, var.ssa_n);
+      fprint(out, "__ssa_{}_{}", var.var->name, var.ssa_n, var.ssa_tab_n);
     },
     [&](tree::jump_t jump) {
       fprint(out, "jump bb_{}", jump.target.i);

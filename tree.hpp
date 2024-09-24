@@ -241,7 +241,7 @@ TREE_DEF(variable, : decl_t, op_t {
   variant_t<""_s, "extern"_s, "static"_s, "auto"_s, "register"_s> scs;
 
   std::vector<attribute> attrs;
-  size_t ssa_count{};
+  size_t ssa_count{}, ssa_tab_n{};
 });
 TREE_DEF(access_member, : lvalue_t { expression expr; variable member; });
 TREE_DEF(pointer_access_member, : lvalue_t { expression expr; variable member; });

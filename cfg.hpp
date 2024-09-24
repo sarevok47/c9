@@ -23,7 +23,7 @@ public:
   };
 
   iterator begin() { return storage.begin(); }
-  iterator end() {   return storage.end(); }
+  iterator end()  { return storage.end(); }
 
   iterator find(T value) { return storage.find(value); }
 
