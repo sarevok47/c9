@@ -66,8 +66,7 @@ void codegen::gen(tree::expression expr, op dst) {
       if(expr.op == "||"_s || expr.op == "&&"_s) {
 
       } else {
-        auto src = gen(tree::op(expr.lhs));
-        gen(expr.rhs, dst);
+        auto src = gen(tree::op(expr.lhs)), dst = gen(tree::op(expr.rhs));
         *this << make_binary_insn(expr.op, get_type(expr.type), src, dst);
       }
     }

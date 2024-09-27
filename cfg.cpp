@@ -170,4 +170,19 @@ void control_flow_graph::collect_phi_operands(tree::ssa_variable tab[]) {
         tab[tree::ssa_variable(phi)->ssa_tab_n] = phis.value.second;
   });
 }
+
+void control_flow_graph::convert_to_two_address_code() {
+  cfg_walker{entry}([&](basic_block &bb) {
+    for(auto insn : bb.insns | iter_range)
+      if(auto mov = (tree::mov) *insn) {
+        mov->src(overload {
+          [](auto &) {},
+          [&](auto &expr) requires requires { expr.lhs; expr.rhs; } {
+            bb.insns.insert(insn, tree::mov{{.src = expr.rhs, .dst = mov->dst}});
+            expr.rhs = mov->dst;
+          }
+        });
+      }
+  });
+}
 }}

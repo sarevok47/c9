@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <set>
+#include <list>
 #include "tree.hpp"
 #include "tree-trait.hpp"
 #include "simple.hpp"
@@ -74,7 +75,7 @@ void tree_dump(FILE *out, tree::statement tree);
 struct basic_block {
   class control_flow_graph &cfg;
   size_t i{};
-  std::vector<tree::statement> insns;
+  std::list<tree::statement> insns;
 
   std::set<basic_block *> preds, succs;
   flat_map<tree::variable, std::pair<tree::phi, tree::ssa_variable>> phis;
@@ -160,6 +161,7 @@ class control_flow_graph {public:
   void construct(tree::statement stmt);
 
   void collect_phi_operands(tree::ssa_variable tab[]);
+  void convert_to_two_address_code();
 
   void dump();
 };
