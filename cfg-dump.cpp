@@ -1,12 +1,12 @@
 #include "cfg.hpp"
-
+#include <x86/target.hpp>
 namespace c9 { namespace cfg {
 void tree_dump(FILE *out, tree::statement tree) {
   if(!tree::expression(tree) && !tree::type_decl(tree))
     fprint(out, "\t");
   visit(tree, overload {
     [&](tree::mov_t &mov) {
-      tree_dump(out, mov.dst->type);
+  //    tree_dump(out, mov.dst->type);
       fprint(out, " ");
       tree_dump(out, mov.dst);
       fprint(out, " = ");
@@ -26,6 +26,12 @@ void tree_dump(FILE *out, tree::statement tree) {
     },
     [&](tree::ssa_variable_t &var) {
       fprint(out, "__ssa_{}_{}", var.var->name, var.ssa_n, var.ssa_tab_n);
+    },
+    [&](tree::target_op_t &op) {
+      visit(op.data, overload {
+        [](auto &) {},
+        [&](x86::op &op) { x86::dump_op(out, op); }
+      });
     },
     [&](tree::jump_t jump) {
       fprint(out, "jump bb_{}", jump.target.i);

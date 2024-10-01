@@ -25,6 +25,8 @@
 #include "cfg.hpp"
 #include "tree-opt.hpp"
 #include "x86/target.hpp"
+
+#include "regalloc.hpp"
 void handler(int sig) {
   char pid_buf[30];
   sprintf(pid_buf, "%d", getpid());
@@ -133,9 +135,12 @@ tree::default_ =  [] {
           c9::tree_opt::constprop(cfg);
           c9::tree_opt::cse(cfg);
 
+          cfg.unssa();
           cfg.convert_to_two_address_code();
-          tree::ssa_variable tab[cfg.nssa + 1];
+          /*tree::ssa_variable tab[cfg.nssa + 1];
           cfg.collect_phi_operands(tab);
+*/
+
 
           cfg::cfg_walker walk{cfg.entry};
 
@@ -144,19 +149,22 @@ tree::default_ =  [] {
           std::fill_n(tmps, cfg.ntmp, 0);
           std::fill_n(vars, cfg.nssa + 1, 0);
 
-          x86::codegen codegen {tab, tmps, vars};
+          regalloc::register_allocator alloc{cfg, x86::intreg{}, x86::op{}};
+
+
+          alloc();
+#if 1
+
+          x86::codegen codegen;
 
           codegen.gen(cfg.entry);
-
+#endif
+#if 0
           for(cfg::basic_block *bb = &cfg.entry; bb; bb = bb->step()) {
             bb->dump(stderr);
            }
-
+#endif
            fprintln(stderr, "\n\n");
-
-
-
-
         }
 
       });// tree::dumper{stderr}.dump(tree);

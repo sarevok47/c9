@@ -161,6 +161,7 @@ void control_flow_graph::construct(tree::statement stmt) {
     },
     [&](tree::compound_statement_t &stmts) { for(auto stmt : stmts) construct(stmt); },
   });
+  ++insn_count;
 }
 
 void control_flow_graph::collect_phi_operands(tree::ssa_variable tab[]) {
@@ -171,6 +172,26 @@ void control_flow_graph::collect_phi_operands(tree::ssa_variable tab[]) {
   });
 }
 
+
+
+void control_flow_graph::unssa() {
+  tree::ssa_variable tab[nssa + 1];
+  collect_phi_operands(tab);
+
+  for(auto bb = &entry; bb; bb = bb->step())
+     bb->phis.clear();
+
+  for_each_insn([&, ptab = (tree::ssa_variable *) tab](tree::statement &insn, basic_block &bb) {
+    visit_ops(insn, [&](auto &op) {
+      if(auto ssa = (tree::ssa_variable) op)
+        if(auto unssa = ptab[ssa->ssa_tab_n]) {
+          op = unssa;
+          bb.def.erase(ssa);
+          bb.def.insert(unssa);
+        }
+    });
+  });
+}
 void control_flow_graph::convert_to_two_address_code() {
   cfg_walker{entry}([&](basic_block &bb) {
     for(auto insn : bb.insns | iter_range)

@@ -7,6 +7,9 @@
 #include <set>
 #include "diagnostics.hpp"
 #include "flat-set.hpp"
+
+#include "x86/isa.hpp"
+
 namespace c9 {
 namespace cfg { struct basic_block; };
 namespace sema { struct node_t;  };
@@ -402,7 +405,7 @@ TREE_DEF(mov, : statement_t { expression src; op dst; });
 TREE_DEF(temporary, : op_t { size_t idx; });
 TREE_DEF(ssa_variable, : op_t { tree::variable var; size_t ssa_n, ssa_tab_n; });
 TREE_DEF(cst, : op_t {  variant<__uint128_t, long double> data; });
-
+TREE_DEF(target_op, : op_t { variant<x86::op> data; });
 TREE_DEF(phi,  : expression_t { flat_set<op> elts; });
 TREE_DEF(jump, : statement_t { cfg::basic_block &target; });
 TREE_DEF(br,   : statement_t { tree::op cond; cfg::basic_block &true_, &false_; });
@@ -429,10 +432,10 @@ constexpr decltype(auto) visit(tree_value<T> x, tree_value<Y> y, auto &&f) {
     [&](narrow<T> auto &&x, narrow<Y> auto &&y) -> R {
       return f((decltype(x)) x, (decltype(y)) y);
     },
-    [&](empty_node x, narrow<Y> auto &&y) -> R {
+    [&](empty_node_t x, narrow<Y> auto &&y) -> R {
       return f(x, (decltype(y)) y);
     },
-    [&](narrow<T> auto &&x, empty_node y) -> R {
+    [&](narrow<T> auto &&x, empty_node_t y) -> R {
        return f((decltype(x)) x, y);
      },
     [](auto &&, auto &&) -> R { c9_assert(0); },

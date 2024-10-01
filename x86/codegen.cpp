@@ -35,25 +35,14 @@ insn make_binary_insn(lex::binary_tok binary_op, data_type type, op lhs, op rhs)
 
 op codegen::gen(tree::op operand) {
   return operand(overload {
-    [&](tree::ssa_variable_t &ssa_) -> op {
-      auto ssa = *unssa(ssa_);
-      if(!ssa_vars[ssa.ssa_tab_n])
-        ssa_vars[ssa.ssa_tab_n] = alloc_virt_reg(ssa);
-      if(ssa.type.is_narrow<tree::floating_type_t>())
-        return xmmreg{ssa_vars[ssa.ssa_tab_n]};
-      return intreg{ssa_vars[ssa.ssa_tab_n]};
+    [&](tree::target_op_t op) {
+      return (x86::op) op.data;
     },
-    [&](tree::temporary_t tmp) -> op {
-      if(!tmps[tmp.idx])
-        tmps[tmp.idx] = alloc_virt_reg(tmp);
-      if(tmp.type.is_narrow<tree::floating_type_t>())
-        return xmmreg{tmps[tmp.idx]};
-      return intreg{tmps[tmp.idx]};
-    },
+    [](tree::ssa_variable_t) { return indirect_op{}; },
     [&](cst_t cst) {
       return (int) (__uint128_t) cst.data;
     },
-    [](auto &) -> op {}
+    [](auto &) -> op { c9_assert(0); }
   });
 }
 void codegen::gen(tree::expression expr, op dst) {
@@ -88,3 +77,4 @@ void codegen::gen(tree::statement stmt) {
   });
 }
 }}
+

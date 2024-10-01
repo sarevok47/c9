@@ -76,7 +76,7 @@ struct basic_block {
   class control_flow_graph &cfg;
   size_t i{};
   std::list<tree::statement> insns;
-
+size_t insn_pos{};
   std::set<basic_block *> preds, succs;
   flat_map<tree::variable, std::pair<tree::phi, tree::ssa_variable>> phis;
   defusechain def, use;
@@ -111,6 +111,7 @@ struct basic_block {
 
   basic_block(control_flow_graph &cfg) : cfg{cfg} {}
   basic_block(control_flow_graph &cfg, size_t i, std::same_as<basic_block *> auto ...preds) : cfg{cfg}, i{i}, preds{preds...} {}
+  basic_block(control_flow_graph &cfg, size_t i, size_t insn_pos, std::same_as<basic_block *> auto ...preds) : cfg{cfg}, i{i}, insn_pos{insn_pos}, preds{preds...} {}
 private:
   basic_block *next{};
 };
@@ -132,7 +133,7 @@ struct cfg_walker {
 };
 class control_flow_graph {public:
   driver &d;
-  size_t nlabel = 1, ntmp{}, nssa{};
+  size_t nlabel = 1, ntmp{}, nssa{};size_t insn_count{};
   basic_block entry{*this}, *last_bb = &entry;
   tree::op last_op;
 
@@ -143,7 +144,7 @@ class control_flow_graph {public:
   }
 
   basic_block &add_bb(auto ...preds) {
-    last_bb = &last_bb->push({*this, nlabel++, preds...});
+    last_bb = &last_bb->push({*this, nlabel++, insn_count, preds...});
     ((preds->succs.emplace(last_bb)), ...);
 
     if constexpr(sizeof...(preds) == 1)
@@ -161,9 +162,29 @@ class control_flow_graph {public:
   void construct(tree::statement stmt);
 
   void collect_phi_operands(tree::ssa_variable tab[]);
+  void for_each_insn(auto &&f) {
+    for(auto bb = &entry; bb; bb = bb->step())
+      for(auto &insn : bb->insns) f(insn, *bb);
+  }
+  void unssa();
   void convert_to_two_address_code();
 
   void dump();
 };
-
+void visit_ops(auto &insn, auto &&f) {
+  insn(prioritizied_overload (
+    [&](narrow<tree::op_t> auto &) { f(insn); },
+    [&](narrow<tree::expression_t> auto &expr) {
+      if constexpr(requires { expr.expr;}) visit_ops(expr.expr, f);
+      if constexpr(requires { expr.lhs; }) visit_ops(expr.lhs,  f);
+      if constexpr(requires { expr.rhs; }) visit_ops(expr.rhs,  f);
+    },
+    [&](tree::mov_t &mov) {
+      visit_ops(mov.src, f);
+      visit_ops(mov.dst, f);
+    },
+    [&](tree::br_t &br) { visit_ops(br.cond, f); },
+    [](auto &) {}
+  ));
+}
 }}

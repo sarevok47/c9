@@ -21,6 +21,8 @@ public:
 
   void erase(auto p) { storage.erase(p); }
 
+  void clear() { storage.clear(); }
+
   Value &operator[](const Key &key) {
     if(auto p = find(key); p == end()) {
       push_back({key, {}});
