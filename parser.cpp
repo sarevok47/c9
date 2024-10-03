@@ -426,7 +426,7 @@ bool parser::type_specifier(tree::type_name &type, type_spec_state &tcs) {
 }
 
 
-bool parser::attribute_list(std::vector<tree::attribute> &attr_list) {
+bool parser::nested_attribute_list(std::vector<tree::attribute> &attr_list, tree::type_name type) {
   bool r{};
   for(bool tmp; tmp = *this <= keyword::__attribute___; *this <= ")"_req >> ")"_req) {
     r |= tmp;
@@ -455,7 +455,11 @@ bool parser::attribute_list(std::vector<tree::attribute> &attr_list) {
 
           *this <= ")"_req;
       }
-      attr_list.emplace_back(mov(attr));
+
+      if(type && attr.name == "aligned" || attr.name == "packed")
+        type->attrs.emplace_back(mov(attr));
+      else
+        attr_list.emplace_back(mov(attr));
 
       if(*this <= ","_s)
         continue;;
@@ -540,8 +544,10 @@ tree::type_name parser::direct_declarator(sema::id &id, tree::type_name base, st
   }
 
   if(*this <= "("_s) {
-    attribute_list(attrs);
+    std::vector<tree::attribute> start_attrs;
+    attribute_list(start_attrs);
     if(starts_typename(peek_token()) || peek_token() == ")"_s) {
+      attrs.insert(attrs.end(), start_attrs.begin(), start_attrs.end());
       tree::function_type_t fun{.return_type = base};
       function_parameters(fun);
       fun.return_type = direct_declarator(id, fun.return_type, attrs);
@@ -549,7 +555,7 @@ tree::type_name parser::direct_declarator(sema::id &id, tree::type_name base, st
       ptr->ptr_type = {{.type = ptr}};
       return tree::type_name{{.type = ptr}};
     } else {
-      tree::type_name stub = tree::type_name_t{};
+      tree::type_name stub = tree::type_name_t{ .attrs = mov(start_attrs) };
       auto type = declarator(id, stub, attrs);
       *this <= ")"_req;
       *stub = *direct_declarator(id, base, attrs);
@@ -566,13 +572,14 @@ tree::type_name parser::direct_declarator(sema::id &id, tree::type_name base, st
   return base;
 }
 
-
 tree::type_name parser::declarator(sema::id &id, tree::type_name base, std::vector<tree::attribute> &attrs) {
   tree::type_name type = base;
   auto make_pointer = [&] {
     type = tree::type_name{{.type = tree::pointer{{.type = type}}}};
   };
-  while(*this <= ("*"_s, make_pointer) >> *(&parser::type_qualifer / type | &parser::attribute_list / type->attrs));
+
+  while(*this <= ("*"_s, make_pointer) >> *(&parser::type_qualifer / type
+    | [&](lex_spirit &) { return nested_attribute_list(attrs, type); }));
   return direct_declarator(id, type, attrs);
 }
 

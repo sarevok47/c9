@@ -329,6 +329,7 @@ tree::decl semantics::build_local_extern_decl(rich_location rl, id id, tree::dec
     }
   });
 }
+
 tree::decl semantics::build_decl(rich_location rl, id id, tree::type_name type, storage_class_spec scs, bool implicit) {
   if(!id.node || !id.node->decl)
     id.node = &scopes.stack[id.level]->operator[](id.name);

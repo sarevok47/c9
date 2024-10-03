@@ -97,7 +97,8 @@ struct parser : sema::semantics, lex_spirit {
   bool type_specifier(tree::type_name &type, type_spec_state &tcs);
 
 
-  bool attribute_list(std::vector<tree::attribute> &attr_list);
+  bool nested_attribute_list(std::vector<tree::attribute> &attr_list, tree::type_name type);
+  bool attribute_list(std::vector<tree::attribute> &attr_list) { return nested_attribute_list(attr_list, {}); }
 
   bool declspec(decl_specifier_seq &dss, bool scs_ok = true);
 
