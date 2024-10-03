@@ -7,15 +7,23 @@
 
 namespace c9 { namespace x86 {
 static void dump_type(FILE *out, data_type type) { visit(type, [&](auto s) { fprint(out, "{}", s.c_str()); }); }
-static void dump_op(FILE *out, op op) {
+static void dump_op(FILE *out, op op, data_type type) {
   visit(op, overload {
     [&]<class T>(T reg) requires std::same_as<T, intreg> || std::same_as<T, xmmreg> {
       visit(reg, overload {
         [&](size_t cnt) { fprint(out, "%{}", cnt); },
-        [&](auto s)     { fprint(out, "%{}", s.c_str()); }
+        [&](auto s)     {
+          sv str = s.c_str() + 1;
+          fprint(out, "%{}{}", type == "l"_s ? "e" : type == "q"_s ? "r" : "",  str);
+        }
       });
     },
-    [&](int imm) { fprint(out, "{}", imm); },
+    [&](indirect_op op) {
+      fprint(out, "-{}(", op.offset);
+      dump_op(out, op.base, "q"_s);
+      fprint(out, ")");
+    },
+    [&](int imm) { fprint(out, "${}", imm); },
     [](auto) {}
   });
 }
@@ -27,7 +35,7 @@ static void dump_insn(FILE *out, insn insn) {
       dump_type(out, alu.type);
       fprint(out, " ");
       for(size_t i = 0; i != n; ++i) {
-        dump_op(out, alu.ops[i]);
+        dump_op(out, alu.ops[i], alu.type);
         if(i + 1 != n) fprint(out, ", ");
       }
       fprintln(out, "");
@@ -41,7 +49,9 @@ static void dump_insn(FILE *out, insn insn) {
 }
 struct codegen {
   std::vector<insn> insns;
+  size_t sp{};
 
+  flat_map<tree::op, size_t> local_vars;
 
   void gen(cfg::basic_block &entry);
   op gen(tree::op op);

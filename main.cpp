@@ -150,16 +150,15 @@ tree::default_ =  [] {
           std::fill_n(vars, cfg.nssa + 1, 0);
 
           regalloc::register_allocator alloc{cfg, x86::intreg{}, x86::op{}};
-
-
+          alloc.tab[x86::intreg::indexof<decltype("rsp"_s)>()].second = false;
+          alloc.tab[x86::intreg::indexof<decltype("rbp"_s)>()].second = false;
           alloc();
 #if 1
 
           x86::codegen codegen;
 
           codegen.gen(cfg.entry);
-#endif
-#if 0
+#else
           for(cfg::basic_block *bb = &cfg.entry; bb; bb = bb->step()) {
             bb->dump(stderr);
            }

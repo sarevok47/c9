@@ -30,7 +30,7 @@ void tree_dump(FILE *out, tree::statement tree) {
     [&](tree::target_op_t &op) {
       visit(op.data, overload {
         [](auto &) {},
-        [&](x86::op &op) { x86::dump_op(out, op); }
+        [&](x86::op &op) { x86::dump_op(out, op, "q"_s); }
       });
     },
     [&](tree::jump_t jump) {

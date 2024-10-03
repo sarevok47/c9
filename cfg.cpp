@@ -63,7 +63,23 @@ struct cfg_stream {
 };
 
 cfg_stream control_flow_graph::cfg() { return cfg_stream{*this}; }
+tree::op control_flow_graph::construct_var(tree::variable var) {
+  if(var->is_global) {
+    last_bb->use.insert(var);
+    return var;
+  }
 
+  auto ssa = [&] -> tree::ssa_variable {
+    tree::ssa_variable_t ssa{.var = var, .ssa_n = var->ssa_count, .ssa_tab_n = var->ssa_tab_n};
+    ssa.type = var->type;
+    return ssa;
+  }();
+  if(!last_bb->use.find(ssa)) {
+    last_bb->use.insert(ssa);
+    last_bb->place_phi(ssa);
+  }
+  return ssa;
+}
 tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr) {
   sv dummy;
   if(auto cst = tree_fold(expr, dummy))
@@ -72,23 +88,7 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
   return expr(overload {
     [](auto &) -> tree::expression {},
     [&](tree::decl_expression_t &expr) -> tree::expression {
-      if(auto var = (tree::variable) expr.declref) {
-        if(var->is_global) {
-          last_bb->use.insert(var);
-          return var;
-        }
-
-        auto ssa = [&] -> tree::ssa_variable {
-          tree::ssa_variable_t ssa{.var = var, .ssa_n = var->ssa_count, .ssa_tab_n = var->ssa_tab_n};
-          ssa.type = expr.type;
-          return ssa;
-        }();
-        if(!last_bb->use.find(ssa)) {
-          last_bb->use.insert(ssa);
-          last_bb->place_phi(ssa);
-        }
-        return ssa;
-      }
+      if(auto var = (tree::variable) expr.declref) return construct_var(var);
       if(auto fun = (tree::function) expr.declref)
         return fun;
       c9_assert(0);
@@ -100,14 +100,14 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
       return dst;
     },
     [&](tree::binary_expression_t &b) -> tree::expression {
-      b.lhs = construct_expr_no_op(b.lhs);
-      b.rhs = construct_expr_no_op(b.rhs);
+      b.lhs = construct(b.lhs);
+      b.rhs = construct(b.rhs);
       if(tree::op(b.lhs) && tree::op(b.rhs))
         return expr;
       return last_bb->add_assign(expr, make_tmp(b.type));
     },
     [&](tree::unary_expression_t &u) -> tree::expression {
-      u.expr = construct_expr_no_op(u.expr);
+      u.expr = construct(u.expr);
       if(tree::op(u.expr)) return expr;
       return last_bb->add_assign(u, make_tmp(u.type));
     },
@@ -154,7 +154,7 @@ void control_flow_graph::construct(tree::statement stmt) {
     },
     [&](tree::variable_t &var) {
       if(var.definition)
-        last_bb->add_assign(var.definition, tree::variable(stmt));
+        last_bb->add_assign(construct_expr_no_op(var.definition), construct_var(tree::variable(stmt)));
     },
     [&]<narrow<tree::expression_t> T>(T &) {
       construct_expr_no_op(tree::expression{tree::tree_value<T>(stmt)});

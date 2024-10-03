@@ -12,7 +12,7 @@ struct indirect_op { intreg base; int offset; };
 using op = variant<intreg, xmmreg, int, indirect_op>;
 
 
-using data_type = variant_t<"b"_s, ""_s, "l"_s, "q"_s, "ss"_s, "sd"_s>;
+using data_type = variant_t<"b"_s, "l"_s, "q"_s, "ss"_s, "sd"_s>;
 template<size_t opn, auto name> struct alu_insn { data_type type; op ops[opn]; };
 struct jmp { cfg::basic_block &target; };
 struct jcc : jmp {
@@ -24,13 +24,9 @@ using add =  alu_insn<2, "add"_s>;
 using sub =  alu_insn<2, "sub"_s>;
 using mov =  alu_insn<2, "mov"_s>;
 using test = alu_insn<2, "test"_s>;
+using xor_  = alu_insn<2, "xor"_s>;
+using neg =   alu_insn<1, "neg"_s>;
+using not_ =  alu_insn<1, "not"_s>;
 
-using insn = variant<add, sub, mov, test, jmp, jcc>;
+using insn = variant<add, sub, mov, test, xor_, neg, not_, jmp, jcc>;
 }}
-/*
-__ssa_phi = -8(%rsp)
-__ssa_phi = 2
-__ssa_phi = __ssa_x_phi + __ssa_phi
-store __ssa_phi, -8(%rsp)
-//TODO INSERT TMP COPY IF USE AND DST MEM IF DEF
-*/

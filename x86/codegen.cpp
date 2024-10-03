@@ -21,7 +21,7 @@ void codegen::gen(cfg::basic_block &entry) {
 data_type get_type(type_decl type) {
   return type(overload {
     [](auto &)       -> data_type { c9_assert(0); },
-    [](int_type_t &) -> data_type { return ""_s; }
+    [](int_type_t &) -> data_type { return "l"_s; }
   });
 }
 
@@ -38,7 +38,11 @@ op codegen::gen(tree::op operand) {
     [&](tree::target_op_t op) {
       return (x86::op) op.data;
     },
-    [](tree::ssa_variable_t) { return indirect_op{}; },
+    [&](tree::ssa_variable_t &) {
+      auto &pos = local_vars[operand];
+      if(!pos) pos = sp += 4;
+      return indirect_op{"rbp"_s, pos};
+    },
     [&](cst_t cst) {
       return (int) (__uint128_t) cst.data;
     },
@@ -51,13 +55,21 @@ void codegen::gen(tree::expression expr, op dst) {
     [&](narrow<tree::op_t> auto &op) {
       *this << mov{ get_type(op.type), {gen(tree::op(expr)), dst} };
     },
-    [&](binary_expression_t expr) {
-      if(expr.op == "||"_s || expr.op == "&&"_s) {
+    [&](unary_expression_t &expr) {
+      auto src = gen(tree::op(expr.expr));
+      visit(expr.op, overload {
+        [&](decltype("~"_s)) {
+          *this << not_{get_type(expr.type), {src}}
+                << mov{get_type(expr.type), {src, dst}};
+        },
+        [](auto &) {
 
-      } else {
-        auto src = gen(tree::op(expr.lhs)), dst = gen(tree::op(expr.rhs));
-        *this << make_binary_insn(expr.op, get_type(expr.type), src, dst);
-      }
+        }
+      });
+    },
+    [&](binary_expression_t expr) {
+      auto src = gen(tree::op(expr.lhs)), dst = gen(tree::op(expr.rhs));
+      *this << make_binary_insn(expr.op, get_type(expr.type), src, dst);
     }
   });
 }
