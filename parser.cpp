@@ -884,7 +884,7 @@ tree::statement parser::statement() {
       location_t colon_loc = peek_token().loc;
       consume();
 
-      auto stmt = block_item();
+      auto stmt = peek_token() == "}"_s ? tree::statement{} : block_item();
 
       tree::label label{{.name = id.name, .stmt = stmt}};
       if(!scopes.ctx_scope_get<sema::fn_scope>()
