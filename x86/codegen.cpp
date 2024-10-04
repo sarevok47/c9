@@ -56,11 +56,11 @@ void codegen::gen(tree::expression expr, op dst) {
       *this << mov{ get_type(op.type), {gen(tree::op(expr)), dst} };
     },
     [&](unary_expression_t &expr) {
-      auto src = gen(tree::op(expr.expr));
+      gen(tree::op(expr.expr), dst);
+
       visit(expr.op, overload {
         [&](decltype("~"_s)) {
-          *this << not_{get_type(expr.type), {src}}
-                << mov{get_type(expr.type), {src, dst}};
+          *this << not_{get_type(expr.type), {dst}};
         },
         [](auto &) {
 

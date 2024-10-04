@@ -108,7 +108,6 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
     },
     [&](tree::unary_expression_t &u) -> tree::expression {
       u.expr = construct(u.expr);
-      if(tree::op(u.expr)) return expr;
       return last_bb->add_assign(u, make_tmp(u.type));
     },
     [&](tree::statement_expression_t &stmt_expr) -> tree::expression {
