@@ -111,6 +111,14 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
       if(tree::op(u.expr)) return expr;
       return last_bb->add_assign(u, make_tmp(u.type));
     },
+    [&](tree::statement_expression_t &stmt_expr) -> tree::expression {
+      for(auto stmt : *stmt_expr.stmts | iter_range) {
+        if(stmt + 1 == stmt_expr.stmts->end() && stmt_expr.type != tree::void_type_node)
+          return construct((tree::expression) *stmt);
+        construct(*stmt);
+      }
+      return {};
+    },
     [&](tree::function_call_t &fun_call) {
       fun_call.calee = construct(fun_call.calee);
       for(auto &arg : fun_call.args) arg = construct(arg);
