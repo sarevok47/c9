@@ -145,7 +145,7 @@ void control_flow_graph::construct(tree::statement stmt) {
       basic_block *cond_bb, *loop_body, *loop_finish;
       tree::op cond;
 
-      cfg() >> for_.clause     >> for_.cond >> cond >> cond_bb
+      cfg() >> for_.clause     >> add_bb(last_bb) >> cond_bb >> for_.cond >> cond
             >> add_bb(last_bb) >> loop_body >> for_.body >> for_.step >> loop_finish
             >> loop_finish->jump(*cond_bb)
             >> cond_bb->br(cond, *loop_body, add_bb(cond_bb));
