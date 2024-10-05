@@ -119,7 +119,6 @@ tree::default_ =  [] {
 
 	pp::preprocessor pp{d, file};
 
-
 	parse::parser parser{d, pp};
 
 	for(; ;) {

@@ -23,7 +23,6 @@ void label_manager::lookup_label(string name, tree::goto_statement goto_) {
     goto_->target = p->value;
 }
 
-
 tree::subscript_expression semantics::build_subscript_expression(source_range loc, tree::expression of, tree::expression with) {
   using namespace tree;
   if(!strip_type(with->type)([]<class T>(T &) { return narrow<T, integer_type_t>; })) {
