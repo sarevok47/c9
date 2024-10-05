@@ -7,8 +7,8 @@ namespace x86 {
 enum class intreg { rax, rcx, rdx, rbx, rsi, rdi, rbp, rsp, r8, r9, r10, r11, r12, r13, r14, r15, num_of };
 enum class xmmreg { xmm0, num_of };
 struct indirect_op { intreg base; int offset; };
-
-using op = variant<intreg, xmmreg, int, indirect_op>;
+using sym = string;
+using op = variant<sym, intreg, xmmreg, int, indirect_op>;
 
 
 using data_type = variant_t<"b"_s, "l"_s, "q"_s, "ss"_s, "sd"_s>;
@@ -18,6 +18,8 @@ struct jcc : jmp {
   bool is_unsigned{};
   variant_t<"ne"_s, "e"_s> op;
 };
+struct call { op target; };
+struct ret {};
 
 using add =  alu_insn<2, "add"_s>;
 using sub =  alu_insn<2, "sub"_s>;
@@ -27,5 +29,5 @@ using xor_  = alu_insn<2, "xor"_s>;
 using neg =   alu_insn<1, "neg"_s>;
 using not_ =  alu_insn<1, "not"_s>;
 
-using insn = variant<add, sub, mov, test, xor_, neg, not_, jmp, jcc>;
+using insn = variant<add, sub, mov, test, xor_, neg, not_, jmp, jcc, call, ret>;
 }}

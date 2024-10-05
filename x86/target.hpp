@@ -9,6 +9,7 @@ namespace c9 { namespace x86 {
 static void dump_type(FILE *out, data_type type) { visit(type, [&](auto s) { fprint(out, "{}", s.c_str()); }); }
 static void dump_op(FILE *out, op op, data_type type) {
   visit(op, overload {
+    [&](sym &sym) { fprint(out, "{}", sym); },
     [&](intreg intreg) {
       sv _64[] = {
         "rax", "rcx","rdx", "rbx", "rsi", "rdi", "rbp", "rsp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"
@@ -21,7 +22,7 @@ static void dump_op(FILE *out, op op, data_type type) {
     },
     [&](xmmreg xmmreg) { fprint(out, "%xmm_{}", size_t(xmmreg)); },
     [&](indirect_op op) {
-      fprint(out, "-{}(", op.offset);
+      fprint(out, "{}(", op.offset);
       dump_op(out, op.base, "q"_s);
       fprint(out, ")");
     },
@@ -42,8 +43,10 @@ static void dump_insn(FILE *out, insn insn) {
       }
       fprintln(out, "");
     },
-    [&](jmp jmp) { fprintln(out, "jmp bb_{}", jmp.target.i); },
+    [&](jmp jmp) { fprintln(out, "jmp .bb_{}", jmp.target.i); },
     [&](jcc jcc) { visit(jcc.op, [&](auto s) { fprintln(out, "j{} bb_{}", s.c_str(), jcc.target.i); }); },
+    [&](call call) { fprint(out, "call ");  dump_op(out, call.target, "l"_s); fprintln(out, ""); },
+    [&](ret &) { fprintln(out, "ret"); },
     [](auto) {
 
     }
@@ -51,10 +54,11 @@ static void dump_insn(FILE *out, insn insn) {
 }
 struct codegen {
   std::vector<insn> insns;
-  size_t sp{};
+  int sp{};
 
   flat_map<tree::op, size_t> local_vars;
   std::vector<std::pair<size_t, size_t>> label_list;
+  std::vector<int *> ret_insert_add_sp_pos;
 
   void gen(cfg::basic_block &entry);
   op gen(tree::op op);
