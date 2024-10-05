@@ -69,10 +69,6 @@ int main(int argc, char **argv) {
   signal(SIGSEGV, handler);   // install our handler
 
 
-x86_target t;
-  driver d{.t = t};
-
-  auto &ff = d.files["../../tmp.cpp"];
 
 
 	{
@@ -97,14 +93,16 @@ BUILTIN_TYPE_DEF(void_type);
 
 
 	}
+x86_target t;
+  driver d{.t = t};
+
+  auto &ff = d.files["../../tmp.cpp"];
 
 
   	file &file = ff;
 
 lex::lexer lex{d, file};
 lex::token f;
-
-
 
 
 

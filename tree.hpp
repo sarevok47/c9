@@ -357,12 +357,12 @@ BUILTIN_TYPE_DEF(long_double_type, : floating_type_t {});
 
 TREE_DEF(int_cst_expression, : rvalue_t {
   uint64_t value;
-  int_cst_expression_t(uint64_t value, integer_type type, location_t loc)
+  int_cst_expression_t(uint64_t value, integer_type type, source_range loc)
     : value{value}, rvalue_t{{.type = type, .loc = loc}} {}
 });
 TREE_DEF(float_cst_expression, : rvalue_t {
   long double value;
-  float_cst_expression_t(long double value, floating_type type, location_t loc)
+  float_cst_expression_t(long double value, floating_type type, source_range loc)
     : value{value}, rvalue_t{{.type = type, .loc = loc}} {}
 });
 TREE_DEF(compound_literal, : rvalue_t {

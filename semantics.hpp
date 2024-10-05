@@ -111,6 +111,11 @@ struct semantics {
 
   tree::return_statement build_return_statement(source_range loc, tree::type_decl return_type, tree::expression expr);
 
+  tree::int_cst_expression eval_sizeof_expression(source_range loc, tree::type_decl type) {
+    // TODO use size of type
+    return {{0, tree::integer_type(strip_type(d.t.size_type_node)), loc}};
+  }
+
   template<class T> T build_access_member_expression(tree::expression expr, string name) {
     auto type = strip_type(expr->type);
 

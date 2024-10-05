@@ -107,14 +107,12 @@ tree::expression parser::primary_expression() {
       if constexpr(__is_same(T, keyword))
         switch(v) {
           case keyword::sizeof_: {
-            tree::sizeof_expression_t s;
             if(peek_token() == "("_s && starts_typename(peek_2nd_token())) {
               consume();
-              s.arg = tree::type_decl(type_name());
+              auto type = type_name();
               *this <= ")"_req;
-            } else
-              s.arg = unary_expression();
-            return s;
+              return eval_sizeof_expression(loc, type);
+            } else return eval_sizeof_expression(loc, unary_expression()->type);
           }
           default: break;
         }
@@ -627,6 +625,11 @@ tree::expression parser::initializer() {
 tree::decl parser::init_decl(decl_specifier_seq &dss, bool tail) {
   sema::id dector_name;
   auto dector_type = declarator(dector_name, dss.type, dss.attrs);
+  if(dector_name.name.empty()) {
+    *this <= ";"_req;
+    return {};
+  }
+
   location_t loc = peek_token().loc;
   *this <= &parser::attribute_list / dss.attrs;
   tree::decl decl;

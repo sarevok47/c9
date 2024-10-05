@@ -74,14 +74,14 @@ cst tree_fold(expression expr, sv &err) {
   return expr(overload {
     [](auto &) -> cst { return {}; },
     [&](int_cst_expression_t int_) -> cst {
-       return do_cast(cst_t{ .data = (__uint128_t) int_.value}, (integer_type) int_.type);
+       return do_cast(cst_t{ .data = (__uint128_t) int_.value}, integer_type(int_.type));
     },
     [&](float_cst_expression_t float_) -> cst {
-       return do_cast(cst_t{ .data = float_.value}, (float_type) float_.type);
+       return do_cast(cst_t{ .data = float_.value}, float_type(float_.type));
     },
     [&](cast_expression_t cast_) -> cst {
       if(auto cst = tree_fold(cast_.cast_from, err)) {
-        *cst = do_cast(*cst, (arithmetic_type) cast_.cast_to);
+        *cst = do_cast(*cst, arithmetic_type(cast_.cast_to));
         return cst;
       } else
         return cst;
@@ -90,8 +90,8 @@ cst tree_fold(expression expr, sv &err) {
       auto lhs = tree_fold(binary.lhs, err), rhs = tree_fold(binary.rhs, err);
       if(!lhs || !rhs) return {};
 
-      *lhs = do_cast(*lhs, (arithmetic_type) binary.type);
-      *rhs = do_cast(*rhs, (arithmetic_type) binary.type);
+      *lhs = do_cast(*lhs, arithmetic_type(binary.type));
+      *rhs = do_cast(*rhs, arithmetic_type(binary.type));
 
       opt<cst_t> r;
       bool signed_ = binary.type.is_narrow<signed_integral_type_t>();
@@ -115,7 +115,7 @@ cst tree_fold(expression expr, sv &err) {
 
       // don't forget to cast result code into the target type
       if(r)
-        return *r = do_cast(*r, (arithmetic_type) binary.type);
+        return *r = do_cast(*r, arithmetic_type(binary.type));
 
       return {};
     }
