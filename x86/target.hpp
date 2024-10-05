@@ -65,10 +65,9 @@ struct codegen {
 
   void dump(FILE *out);
 };
-
-
-
+static intreg int_call_conv_sysv[] = { intreg::rdi, intreg::rsi, intreg::rdx, intreg::rcx, intreg::r8,intreg::r9 };
 }
+
 
 
 struct x86_target : target {

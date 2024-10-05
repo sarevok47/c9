@@ -61,6 +61,23 @@ class register_allocator {
   }
   void free_reg(auto reg) { reg->second = true; }
 
+  void get_spill_reg_for_call(std::pair<tree::target_op, bool> *reg, size_t insn_pos) {
+    while(active.size()) {
+      for(auto p : active | iter_range)
+        if(p->finish < insn_pos) {
+          auto li = *p;
+          active.erase(p);
+          process_interval(li);
+          free_reg(li.reg);
+          goto repeat;
+        } else if(p->reg == reg)
+          p->spill_pos = insn_pos;
+
+
+      break;
+      repeat:
+    }
+  }
   void process_interval(live_interval li) {
     size_t insn_cnt = li.entry->insn_pos;
     tree::target_op reg;
@@ -71,12 +88,18 @@ class register_allocator {
 
     for(cfg::basic_block *bb = li.entry; bb; bb = bb->step()) {;
       for(auto insn : bb->insns | iter_range) {
-        if(reg) {
-          if(insn_cnt == li.spill_pos)
-            bb->insns.insert(insn, tree::mov{{.src = reg, .dst = li.op}});
-            cfg::visit_ops(*insn, [&](auto &op) {
-              if(tree::op(op) == li.op) op = reg;
-            });
+        if(auto mov = (tree::mov) *insn)
+          if(auto funcall = (tree::function_call) mov->src)
+            for(size_t i = 0; i != funcall->args.size(); ++i)
+              get_spill_reg_for_call(call_regs[i], insn_cnt);
+
+        if(reg && insn_cnt == li.spill_pos)
+          bb->insns.insert(insn, tree::mov{{.src = reg, .dst = li.op}}), ++insn_cnt;
+
+        if(reg && insn_cnt <= li.spill_pos) {
+          cfg::visit_ops(*insn, [&](auto &op) {
+            if(tree::op(op) == li.op) op = reg;
+          });
         } else {
           c9_assert(!li.reload);
           cfg::visit_ops(*insn, [&](auto &op) {
@@ -86,10 +109,12 @@ class register_allocator {
               live_interval tmp_li{
                 .op = tmp, .entry = bb, .start = insn_cnt, .finish = insn_cnt + 2, .reload = true
               };
+              ++insn_cnt;
               op = tmp;
               if(auto mov = (tree::mov) *insn)
                 if(mov->dst == tree::op(op)) {
                   bb->insns.insert(insn, tree::mov{{ .src = tmp, .dst = li.op }});
+                  ++insn_cnt;
                   ++tmp_li.finish;
                 }
               next_interval(tmp_li);
@@ -140,7 +165,9 @@ class register_allocator {
   }
 public:
   std::vector<std::pair<tree::target_op, bool>> tab;
+  std::vector<std::pair<tree::target_op, bool> *> call_regs;
   cfg::control_flow_graph &cfg;
+
   void operator()() {
     compute_intervals();
     for(auto &i : intervals) next_interval(i);
@@ -148,9 +175,11 @@ public:
     for(auto &a : active) process_interval(a);
   }
 
-  template<class Reg> register_allocator(cfg::control_flow_graph &cfg, Reg reg, auto op) : cfg{cfg} {
+  template<class Reg> register_allocator(cfg::control_flow_graph &cfg, Reg reg, auto op, auto &&call_regs) : cfg{cfg}{
     for(size_t i = 0; i != size_t(Reg::num_of); ++i)
       tab.emplace_back(tree::target_op{{.data = op = Reg{i} }}, true);
+    for(auto reg : call_regs)
+      this->call_regs.emplace_back(&tab[size_t(reg)]);
   }
 };
 }}

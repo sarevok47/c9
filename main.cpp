@@ -148,7 +148,7 @@ tree::default_ =  [] {
           std::fill_n(tmps, cfg.ntmp, 0);
           std::fill_n(vars, cfg.nssa + 1, 0);
 
-          regalloc::register_allocator alloc{cfg, x86::intreg{}, x86::op{}};
+          regalloc::register_allocator alloc{cfg, x86::intreg{}, x86::op{}, x86::int_call_conv_sysv};
           alloc.tab[size_t(x86::intreg::rsp)].second = false;
           alloc.tab[size_t(x86::intreg::rbp)].second = false;
           alloc();
