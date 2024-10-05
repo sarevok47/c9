@@ -149,9 +149,8 @@ public:
   }
 
   template<class Reg> register_allocator(cfg::control_flow_graph &cfg, Reg reg, auto op) : cfg{cfg} {
-    variant_types(reg)(for_each([&](auto reg) {
-      tab.emplace_back(tree::target_op{{.data = op = Reg{reg} }}, true);
-    }));
+    for(size_t i = 0; i != size_t(Reg::num_of); ++i)
+      tab.emplace_back(tree::target_op{{.data = op = Reg{i} }}, true);
   }
 };
 }}

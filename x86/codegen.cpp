@@ -51,7 +51,7 @@ op codegen::gen(tree::op operand) {
     [&](tree::ssa_variable_t &) {
       auto &pos = local_vars[operand];
       if(!pos) pos = sp += 4;
-      return indirect_op{"rbp"_s, (int) pos};
+      return indirect_op{intreg::rbp, (int) pos};
     },
     [&](cst_t cst) {
       return (int) (__uint128_t) cst.data;

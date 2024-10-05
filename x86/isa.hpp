@@ -4,9 +4,8 @@
 namespace c9 {
 namespace cfg { struct basic_block; }
 namespace x86 {
-using intreg = variant_t<"rax"_s, "rcx"_s, "rdx"_s, "rbx"_s, "rsi"_s, "rdi"_s, "rbp"_s, "rsp"_s>;
-using xmmreg = variant_t<"xmm0"_s, "xmm1"_s, "xmm2"_s, "xmm3"_s, "xmm4"_s, "xmm5"_s, "xmm6"_s,
-                         "xmm7"_s, "xmm8"_s, "xmm9"_s, "xmm10"_s, "xmm11"_s, "xmm12"_s, "xmm13"_s, "xmm14"_s, "xmm15"_s>;
+enum class intreg { rax, rcx, rdx, rbx, rsi, rdi, rbp, rsp, r8, r9, r10, r11, r12, r13, r14, r15, num_of };
+enum class xmmreg { xmm0, num_of };
 struct indirect_op { intreg base; int offset; };
 
 using op = variant<intreg, xmmreg, int, indirect_op>;

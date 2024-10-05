@@ -9,22 +9,24 @@ namespace c9 { namespace x86 {
 static void dump_type(FILE *out, data_type type) { visit(type, [&](auto s) { fprint(out, "{}", s.c_str()); }); }
 static void dump_op(FILE *out, op op, data_type type) {
   visit(op, overload {
-    [&]<class T>(T reg) requires std::same_as<T, intreg> || std::same_as<T, xmmreg> {
-      visit(reg, overload {
-        [&](size_t cnt) { fprint(out, "%{}", cnt); },
-        [&](auto s)     {
-          sv str = s.c_str() + 1;
-          fprint(out, "%{}{}", type == "l"_s ? "e" : type == "q"_s ? "r" : "",  str);
-        }
-      });
+    [&](intreg intreg) {
+      sv _64[] = {
+        "rax", "rcx","rdx", "rbx", "rsi", "rdi", "rbp", "rsp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"
+      };
+      sv _32[] = {
+        "eax", "ecx", "edx", "ebx", "esi", "edi", "ebp", "esp", "r8d", "r9d", "r10d", "r11d", "r12d", "r13d", "r14d", "r15d"
+      };
+      size_t idx = size_t(intreg);
+      fprint(out, "%{}", type == "q"_s ? _64[idx] : _32[idx]);
     },
+    [&](xmmreg xmmreg) { fprint(out, "%xmm_{}", size_t(xmmreg)); },
     [&](indirect_op op) {
       fprint(out, "-{}(", op.offset);
       dump_op(out, op.base, "q"_s);
       fprint(out, ")");
     },
     [&](int imm) { fprint(out, "${}", imm); },
-    [](auto) {}
+        [](auto) {}
   });
 }
 static void dump_insn(FILE *out, insn insn) {
