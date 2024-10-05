@@ -52,6 +52,7 @@ struct codegen {
   size_t sp{};
 
   flat_map<tree::op, size_t> local_vars;
+  std::vector<std::pair<size_t, size_t>> label_list;
 
   void gen(cfg::basic_block &entry);
   op gen(tree::op op);
@@ -59,6 +60,8 @@ struct codegen {
   void gen(tree::statement);
 
   codegen &operator<<(auto value) { insns.emplace_back(value); return *this; }
+
+  void dump(FILE *out);
 };
 
 

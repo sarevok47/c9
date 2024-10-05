@@ -11,11 +11,21 @@ using namespace tree;
 void codegen::gen(cfg::basic_block &entry) {
   for(auto bb = &entry; bb; bb = bb->step()) {
     size_t insn_idx = insns.size();
+    label_list.emplace_back(insn_idx, bb->i);
     for(auto insn : bb->insns) gen(insn);
-
-    fprintln(stderr, "bb_{}:", bb->i);
-    for(; insn_idx != insns.size(); ++insn_idx) dump_insn(stderr, insns[insn_idx]);
   }
+}
+
+void codegen::dump(FILE *out) {
+  auto l = label_list.begin();
+  for(size_t i = 0; i != insns.size(); ++i) {
+    if(i == l->first)
+      fprintln(out, ".bb_{}", (l++)->second);
+    dump_insn(out, insns[i]);
+  }
+
+  while(l != label_list.end())
+    fprintln(out, ".bb_{}", (l++)->second);
 }
 
 data_type get_type(type_decl type) {
@@ -41,7 +51,7 @@ op codegen::gen(tree::op operand) {
     [&](tree::ssa_variable_t &) {
       auto &pos = local_vars[operand];
       if(!pos) pos = sp += 4;
-      return indirect_op{"rbp"_s, pos};
+      return indirect_op{"rbp"_s, (int) pos};
     },
     [&](cst_t cst) {
       return (int) (__uint128_t) cst.data;

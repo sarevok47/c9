@@ -133,7 +133,7 @@ struct cfg_walker {
 };
 class control_flow_graph {public:
   driver &d;
-  size_t nlabel = 1, ntmp{}, nssa{};size_t insn_count{};
+  size_t &nlabel, ntmp{}, nssa{};size_t insn_count{};
   basic_block entry{*this}, *last_bb = &entry;
   tree::op last_op;
 

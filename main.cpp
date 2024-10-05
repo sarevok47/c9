@@ -121,7 +121,7 @@ tree::default_ =  [] {
 
 	parse::parser parser{d, pp};
 
-	for(; ;) {
+	for(size_t nlabel = 1; ;) {
     while(parser.peek_token() == ";"_s)
 			parser.consume();
     if(parser.peek_token()) {
@@ -129,7 +129,7 @@ tree::default_ =  [] {
       tree(overload {
         [](auto &) {},
         [&](tree::function_t &fun) {
-          cfg::control_flow_graph cfg{d};
+          cfg::control_flow_graph cfg{d, nlabel};
           cfg.construct(fun.definition);
           c9::tree_opt::constprop(cfg);
           c9::tree_opt::cse(cfg);
@@ -157,6 +157,7 @@ tree::default_ =  [] {
           x86::codegen codegen;
 
           codegen.gen(cfg.entry);
+          codegen.dump(stderr);
 #else
           for(cfg::basic_block *bb = &cfg.entry; bb; bb = bb->step()) {
             bb->dump(stderr);
