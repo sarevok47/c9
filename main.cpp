@@ -152,7 +152,7 @@ tree::default_ =  [] {
           alloc.tab[x86::intreg::indexof<decltype("rsp"_s)>()].second = false;
           alloc.tab[x86::intreg::indexof<decltype("rbp"_s)>()].second = false;
           alloc();
-#if 1
+#if 0
 
           x86::codegen codegen;
 

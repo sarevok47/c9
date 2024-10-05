@@ -823,6 +823,15 @@ tree::goto_statement parser::goto_statement() {
     }
   });
 }
+
+tree::return_statement parser::return_statement() {
+  location_t loc = peek_token().loc;
+  tree::expression expr;
+  if(!(*this <= (";"_s | (&parser::expression % expr >> ";"_req))))
+    *this <= ";"_req;
+  c9_assert(scopes.ctx_scope_get<sema::fn_scope>().top().get().type->return_type);
+  return build_return_statement(loc,  scopes.ctx_scope_get<sema::fn_scope>().top().get().type->return_type, expr);
+}
 tree::statement parser::statement() {
   location_t loc = peek_token().loc;
   if(*this <= keyword::if_)
@@ -837,6 +846,8 @@ tree::statement parser::statement() {
     return for_statement();
   if(*this <= keyword::goto_)
     return goto_statement();
+  if(*this <= keyword::return_)
+    return return_statement();
   if(*this <= keyword::case_) {
     auto &switch_scopes = scopes.ctx_scope_get<sema::switch_scope>();
     if(switch_scopes.empty()) {

@@ -27,6 +27,10 @@ void tree_dump(FILE *out, tree::statement tree) {
     [&](tree::ssa_variable_t &var) {
       fprint(out, "__ssa_{}_{}", var.var->name, var.ssa_n, var.ssa_tab_n);
     },
+    [&](tree::return_statement_t &ret) {
+      fprint(out, "return ");
+      tree_dump(out, ret.expr);
+    },
     [&](tree::target_op_t &op) {
       visit(op.data, overload {
         [](auto &) {},

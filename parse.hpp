@@ -153,6 +153,7 @@ struct parser : sema::semantics, lex_spirit {
   tree::statement expression_statement() ;
 
   tree::goto_statement goto_statement() ;
+  tree::return_statement return_statement();
   tree::statement statement();
 
 

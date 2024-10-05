@@ -109,6 +109,8 @@ struct semantics {
 
   tree::expression build_unary_expression(source_range loc, lex::token op, tree::expression expr);
 
+  tree::return_statement build_return_statement(source_range loc, tree::type_decl return_type, tree::expression expr);
+
   template<class T> T build_access_member_expression(tree::expression expr, string name) {
     auto type = strip_type(expr->type);
 

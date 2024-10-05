@@ -295,7 +295,13 @@ tree::expression semantics::build_unary_expression(source_range loc, lex::token 
 }
 
 
-
+tree::return_statement semantics::build_return_statement(source_range loc, tree::type_decl return_type, tree::expression expr) {
+  tree::type_decl type, expr_type = tree::void_type_node;
+  if(expr) expr_type = strip_type(expr->type);
+  if(!(type = get_common_type(lex::assign_tok{"="_s}, loc, strip_type(return_type), expr_type)))
+    return {};
+  return {{ .expr =  tree::cast_expression{{ .cast_from = expr, .cast_to = strip_type(return_type)}} }};
+}
 
 
 tree::decl semantics::build_typedef_decl(rich_location rl, id id, tree::decl &node, tree::type_name type) {

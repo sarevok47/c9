@@ -159,6 +159,11 @@ void control_flow_graph::construct(tree::statement stmt) {
 
       cond_bb->add_pred(loop_finish);
     },
+    [&](tree::return_statement_t &ret) {
+      if(ret.expr)
+        cfg() >> ret.expr;
+      last_bb->add_insn(stmt);
+    },
     [&](tree::variable_t &var) {
       if(var.definition)
         last_bb->add_assign(construct_expr_no_op(var.definition), construct_var(tree::variable(stmt)));

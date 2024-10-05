@@ -397,6 +397,7 @@ TREE_DEF(label, : decl_t {
 TREE_DEF(break_statement, : statement_t {});
 TREE_DEF(continue_statement, : statement_t {});
 TREE_DEF(goto_statement, : statement_t) { struct empty {}; variant<empty, label, expression> target; };
+TREE_DEF(return_statement, : statement_t { expression expr; });
 TREE_DEF(identifier_token, : base_t { location_t loc; string str; });
 
 
