@@ -59,10 +59,12 @@ op codegen::gen(tree::op operand) {
     [&](tree::target_op_t op) {
       return (x86::op) op.data;
     },
-    [&](tree::ssa_variable_t &) {
-      auto &pos = local_vars[operand];
+    [&](tree::reload_t &reload) {
+      auto &pos = local_vars[reload.op];
       if(!pos) pos = sp += 4;
-      return indirect_op{intreg::rbp, (int) pos};
+      auto reg = (op) tree::target_op(reload.reg)->data;
+      *this << mov{get_type(reload.op->type), {indirect_op{intreg::rsp, (int) pos}, reg }};
+      return reg;
     },
     [&](cst_t cst) {
       return (int) (__uint128_t) cst.data;
@@ -99,6 +101,8 @@ void codegen::gen(tree::expression expr, op dst) {
         }
       }
       *this << call{gen(tree::op(fcall.calee)) };
+      // TODO ADD TYPE HANDLER INSTEAD OF "q"_s
+      *this << mov{"q"_s, {intreg::rax, dst}};
     },
     [&](binary_expression_t expr) {
       auto src = gen(tree::op(expr.lhs)), dst = gen(tree::op(expr.rhs));
@@ -110,7 +114,21 @@ void codegen::gen(tree::statement stmt) {
   stmt(overload {
     [](auto &) {},
     [&](mov_t mov) {
-      gen(mov.src, gen(mov.dst));
+      auto dst = gen(mov.dst);
+      gen(mov.src, dst);
+    },
+    [&](compound_statement_t &compound) {
+      for(auto stmt : compound) gen(stmt);
+    },
+    [&](spill_statement_t &spill) {
+      auto &pos = local_vars[spill.op];
+      if(!pos) pos = sp += 4;
+      *this << mov{get_type(spill.op->type), {gen(tree::op(spill.reg)), indirect_op{intreg::rsp, (int) pos} }};
+    },
+    [&](reload_t &reload) {
+      auto &pos = local_vars[reload.op];
+      if(!pos) pos = sp += 4;
+      *this << mov{get_type(reload.op->type), {indirect_op{intreg::rsp, (int) pos}, gen(tree::op(reload.reg)) }};
     },
     [&](br_t br) {
       *this << test{get_type(br.cond->type), {gen(br.cond), gen(br.cond)}};

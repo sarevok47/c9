@@ -4,8 +4,10 @@
 #include "isa.hpp"
 #include "cfg.hpp"
 #include "variant.hpp"
+#include "regalloc.hpp"
 
-namespace c9 { namespace x86 {
+namespace c9 {
+namespace x86 {
 static void dump_type(FILE *out, data_type type) { visit(type, [&](auto s) { fprint(out, "{}", s.c_str()); }); }
 static void dump_op(FILE *out, op op, data_type type) {
   visit(op, overload {
@@ -70,6 +72,7 @@ struct codegen {
   void dump(FILE *out);
 };
 static intreg int_call_conv_sysv[] = { intreg::rdi, intreg::rsi, intreg::rdx, intreg::rcx, intreg::r8,intreg::r9 };
+constexpr static intreg int_ret_reg = intreg::rax;
 }
 
 

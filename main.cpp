@@ -146,13 +146,13 @@ tree::default_ =  [] {
           std::fill_n(tmps, cfg.ntmp, 0);
           std::fill_n(vars, cfg.nssa + 1, 0);
 
-          regalloc::register_allocator alloc{cfg, x86::intreg{}, x86::op{}, x86::int_call_conv_sysv};
+          regalloc::register_allocator alloc{cfg, x86::intreg{}, x86::op{}, x86::int_call_conv_sysv, x86::int_ret_reg};
           alloc.tab[size_t(x86::intreg::rsp)].second = false;
           alloc.tab[size_t(x86::intreg::rbp)].second = false;
           alloc();
 #if 1
 
-          x86::codegen codegen;
+          x86::codegen codegen{};
 
           codegen.gen(cfg.entry);
           codegen.dump(stderr);

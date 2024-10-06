@@ -411,7 +411,8 @@ TREE_DEF(phi,  : expression_t { flat_set<op> elts; });
 TREE_DEF(jump, : statement_t { cfg::basic_block &target; });
 TREE_DEF(br,   : statement_t { tree::op cond; cfg::basic_block &true_, &false_; });
 TREE_DEF(ssa,  : decl_t      { tree::variable var; size_t ssa_count; });
-
+TREE_DEF(reload, : statement_t  { tree::target_op reg; tree::op op;  });
+TREE_DEF(spill_statement, : statement_t {  tree::target_op reg; tree::op op; });
 
 template<class T_t> tree_value<T_t>::operator bool() const { return !is<empty_node_t>(); }
 

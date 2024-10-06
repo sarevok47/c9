@@ -55,6 +55,20 @@ void tree_dump(FILE *out, tree::statement tree) {
       fprint(out, "{}", visit(expr.op, [](auto s) { return s.c_str(); }));
       tree_dump(out, expr.expr);
     },
+    [&](tree::reload_t &reload) {
+      fprint(out, "reload(");
+      tree_dump(out, reload.op);
+      fprint(out, ", ");
+      tree_dump(out, reload.reg);
+      fprintln(out, ")");
+    },
+    [&](tree::spill_statement_t &spill) {
+      fprint(out, "spill(");
+      tree_dump(out, spill.op);
+      fprint(out, ", ");
+      tree_dump(out, spill.reg);
+      fprintln(out, ")");
+    },
     [&](tree::function_call_t &fun_call) {
       tree_dump(out, fun_call.calee);
       fprint(out, "(");

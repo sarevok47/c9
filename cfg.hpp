@@ -184,6 +184,7 @@ void visit_ops(auto &insn, auto &&f) {
       visit_ops(mov.src, f);
       visit_ops(mov.dst, f);
     },
+    [&](tree::compound_statement_t &compound) { for(auto &stmt : compound) visit_ops(stmt, f); },
     [&](tree::br_t &br) { visit_ops(br.cond, f); },
     [](auto &) {}
   ));
