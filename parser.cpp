@@ -655,7 +655,10 @@ tree::decl parser::init_decl(decl_specifier_seq &dss, bool tail) {
         compound.emplace_back(block_item());
         scopes.pop_scope();
       *this <= "}"_req;
-      fun.definition = compound;
+      if(fun.definition)
+        error(peek_token().loc, {}, "redifinition of function '{}'", fun.name);
+      else
+        fun.definition = compound;
       });
 
       if(!body && !tail)

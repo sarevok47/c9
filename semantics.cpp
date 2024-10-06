@@ -377,7 +377,7 @@ tree::decl semantics::build_decl(rich_location rl, id id, tree::type_name type, 
           return err();
         if(scs == "extern"_s || tree.scs == "extern"_s)
           return decl;
-        if(dtype.is<tree::function_type_t>()) {
+        if(__is_same(decltype(tree), tree::function_t &)) {
           scs_assign(tree.scs, scs);
           id.node->decl_implicit = false;
           return decl;

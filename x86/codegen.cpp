@@ -34,8 +34,15 @@ void codegen::dump(FILE *out) {
 
 data_type get_type(type_decl type) {
   return type(overload {
-    [](auto &)       -> data_type { c9_assert(0); },
-    [](int_type_t &) -> data_type { return "l"_s; }
+    [](auto &)                      -> data_type { c9_assert(0); },
+    [](char_type_t &)               -> data_type { return "b"_s; },
+    [](unsigned_char_type_t &)      -> data_type { return "b"_s; },
+    [](int_type_t &)                -> data_type { return "l"_s; },
+    [](unsigned_int_type_t &)       -> data_type { return "l"_s; },
+    [](long_type_t &)               -> data_type { return "q"_s; },
+    [](unsigned_long_type_t &)      -> data_type { return "q"_s; },
+    [](long_long_type_t &)          -> data_type { return "q"_s; },
+    [](unsigned_long_long_type_t &) -> data_type { return "q"_s; },
   });
 }
 

@@ -8,6 +8,13 @@ bool operator==(type_decl lhs, type_decl rhs) {
       return lhs.is_const == rhs.is_const && lhs.is_volatile == rhs.is_volatile
             && lhs.is_restrict == rhs.is_restrict && lhs.type == rhs.type;
     },
+    [&](tree::function_type_t &lhs, tree::function_type_t &rhs) {
+      if(strip_type(lhs.return_type) == strip_type(rhs.return_type))
+        return lhs.is_variadic == rhs.is_variadic && std::ranges::equal(lhs.params, rhs.params, [&](auto &lhs, auto &rhs) {
+          return strip_type(lhs.type) == strip_type(rhs.type);
+        });
+      return false;
+    },
     []<class T>(T &lhs, T &rhs) { return &lhs == &rhs; },
     [](auto &, auto &) { return false; },
   });
