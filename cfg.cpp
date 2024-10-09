@@ -87,6 +87,10 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
   expr->type = tree::strip_type(expr->type);
   return expr(overload {
     [](auto &) -> tree::expression {},
+    [&](tree::cast_expression_t &cast) -> tree::expression {
+      cast.cast_from = construct(cast.cast_from);
+      return last_bb->add_assign(cast, make_tmp(cast.cast_to));
+    },
     [&](tree::decl_expression_t &expr) -> tree::expression {
       if(auto var = (tree::variable) expr.declref) return construct_var(var);
       if(auto fun = (tree::function) expr.declref)

@@ -181,7 +181,7 @@ tree::expression parser::cast_expression() {
     if(tree::initializer_list init; *this <= "{"_s >> &parser::initializer_list % init)
       return tree::compound_literal{{.typec = type, .init = init}};
 
-      return tree::cast_expression{{ .cast_from = cast_expression(),  .cast_to = type, }};
+    return build_cast_expression(peek_token().loc, cast_expression(), type);
   }
   return unary_expression();
 }

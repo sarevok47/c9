@@ -45,6 +45,16 @@ static void dump_insn(FILE *out, insn insn) {
       }
       fprintln(out, "");
     },
+    [&](movsx movsx) {
+      fprint(out, "movs");
+      dump_type(out, movsx.src);
+      dump_type(out, movsx.dst);
+      fprint(out, " ");
+      dump_op(out, movsx.ops[0], movsx.src);
+      fprint(out, ", ");
+      dump_op(out, movsx.ops[1], movsx.dst);
+      fprintln(out, "");
+    },
     [&](jmp jmp) { fprintln(out, "jmp .bb_{}", jmp.target.i); },
     [&](jcc jcc) { visit(jcc.op, [&](auto s) { fprintln(out, "j{} bb_{}", s.c_str(), jcc.target.i); }); },
     [&](call call) { fprint(out, "call ");  dump_op(out, call.target, "l"_s); fprintln(out, ""); },

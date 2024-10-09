@@ -177,6 +177,7 @@ void visit_ops(auto &insn, auto &&f) {
     [&](narrow<tree::op_t> auto &) { f(insn); },
     [&](narrow<tree::expression_t> auto &expr) {
       if constexpr(requires { expr.expr;}) visit_ops(expr.expr, f);
+      if constexpr(requires { expr.cast_from; }) visit_ops(expr.cast_from, f);
       if constexpr(requires { expr.lhs; }) visit_ops(expr.lhs,  f);
       if constexpr(requires { expr.rhs; }) visit_ops(expr.rhs,  f);
     },

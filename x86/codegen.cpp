@@ -79,6 +79,11 @@ void codegen::gen(tree::expression expr, op dst) {
     [&](narrow<tree::op_t> auto &op) {
       *this << mov{ get_type(op.type), {gen(tree::op(expr)), dst} };
     },
+    [&](cast_expression_t &cast) {
+      gen(cast.cast_from, dst);
+      if(get_type(cast.type).index() < get_type(cast.cast_from->type).index())
+        *this << movsx{get_type(cast.type), get_type(cast.cast_from->type), {dst, dst}};
+    },
     [&](unary_expression_t &expr) {
       gen(tree::op(expr.expr), dst);
 

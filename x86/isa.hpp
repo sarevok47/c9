@@ -28,6 +28,7 @@ using test = alu_insn<2, "test"_s>;
 using xor_  = alu_insn<2, "xor"_s>;
 using neg =   alu_insn<1, "neg"_s>;
 using not_ =  alu_insn<1, "not"_s>;
+struct movsx { data_type src, dst; op ops[2]; };
 
-using insn = variant<add, sub, mov, test, xor_, neg, not_, jmp, jcc, call, ret>;
+using insn = variant<add, sub, mov, test, xor_, neg, not_, jmp, jcc, call, ret, movsx>;
 }}

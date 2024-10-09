@@ -83,6 +83,15 @@ tree::function_call semantics::build_function_call(source_range loc, tree::expre
     }
   });
 }
+
+tree::cast_expression semantics::build_cast_expression(source_range sr, tree::expression expr, tree::type_decl type) {
+  if(auto type1 = get_common_type(lex::assign_tok{"="_s}, sr, strip_type(type), strip_type(expr->type))) {
+    tree::cast_expression_t cast{ .cast_from = expr,  .cast_to = type1 };
+    cast.type = type1;
+    return cast;
+  }
+  return {};
+}
 tree::decl_expression semantics::build_decl_expression(location_t ref_loc, tree::decl decl) {
   tree::decl_expression r;
   decl(overload {

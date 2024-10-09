@@ -154,6 +154,7 @@ struct semantics {
            name, std::format(fmt, (decltype(args)) args...));
   }
 
+  tree::cast_expression build_cast_expression(source_range sr, tree::expression expr, tree::type_decl type);
   tree::decl build_typedef_decl(rich_location rl, id id, tree::decl &node, tree::type_name type);
   tree::decl build_local_extern_decl(rich_location rl, id id, tree::decl &node, tree::type_name type);
   tree::decl build_decl(rich_location rl, id id, tree::type_name type, storage_class_spec scs, bool implicit = false);
