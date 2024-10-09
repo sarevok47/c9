@@ -352,6 +352,7 @@ bool parser::struct_or_union_specifier(tree::type_decl &td) {
       td = node.union_decl;
     }
     if(*this <= "{"_s) {
+      size_t size{};
       tree::record_decl_t s{};
       while(peek_token() && peek_token() != "}"_s) {
         decl_specifier_seq dss;
@@ -370,12 +371,16 @@ bool parser::struct_or_union_specifier(tree::type_decl &td) {
               error(peek_token().loc, {}, "cannot declarate function within structure");
             },
             [&](auto &) {
+              if(is_struct ) size += strip_type(type)->size;
+              else size = std::max(size, strip_type(type)->size);
               s.fields.push_back({{ .name = id.name, .type = type, .attrs = mov(attrs) }});
             }
           });
 
           if(id.name.empty()) break;
         } while(*this <= ","_s);
+
+          if(!size) size = 1;
 
           if(!require(";"_s))
             break;

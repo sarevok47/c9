@@ -73,8 +73,13 @@ int main(int argc, char **argv) {
 
 	{
 		using namespace  tree;
-#define BUILTIN_TYPE_DEF(name, ...) type_node<name##_t> = name##_t{};
-BUILTIN_TYPE_DEF(void_type);
+#define BUILTIN_TYPE_DEF(name, ...) \
+    { name##_t t; t.size = x86::size(x86::get_type(t)); \
+    type_node<name##_t> = t; }
+
+
+    void_type_node = void_type_t{};
+
   	BUILTIN_TYPE_DEF(char_type, : unsigned_integral_type_t {});
   	BUILTIN_TYPE_DEF(unsigned_char_type, : signed_integral_type_t {});
   	BUILTIN_TYPE_DEF(signed_char_type, : signed_integral_type_t {});

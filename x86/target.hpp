@@ -13,6 +13,14 @@ static void dump_op(FILE *out, op op, data_type type) {
   visit(op, overload {
     [&](sym &sym) { fprint(out, "{}", sym); },
     [&](intreg intreg) {
+      sv _8[] = {
+        "al", "cl", "dl", "bl", "ah", "ch", "dh", "bh",
+        "r8b", "r9b", "r10b", "r11b", "r12b", "r13b", "r14b", "r15b"
+      };
+      sv _16[] = {
+        "ax", "cx", "dx", "bx", "si", "di", "bp", "sp",
+        "r8w", "r9w", "r10w", "r11w", "r12w", "r13w", "r14w", "r15w"
+      };
       sv _64[] = {
         "rax", "rcx","rdx", "rbx", "rsi", "rdi", "rbp", "rsp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"
       };
@@ -20,7 +28,13 @@ static void dump_op(FILE *out, op op, data_type type) {
         "eax", "ecx", "edx", "ebx", "esi", "edi", "ebp", "esp", "r8d", "r9d", "r10d", "r11d", "r12d", "r13d", "r14d", "r15d"
       };
       size_t idx = size_t(intreg);
-      fprint(out, "%{}", type == "q"_s ? _64[idx] : _32[idx]);
+      fprint(out, "%{}",
+             visit(type, overload {
+               [&](decltype("b"_s)) { return _8; },
+               [&](decltype("w"_s)) { return _16; },
+               [&](decltype("l"_s)) { return _32; },
+               [&](decltype("q"_s)) { return _64; },
+             })[idx]);
     },
     [&](xmmreg xmmreg) { fprint(out, "%xmm_{}", size_t(xmmreg)); },
     [&](indirect_op op) {
@@ -56,7 +70,7 @@ static void dump_insn(FILE *out, insn insn) {
       fprintln(out, "");
     },
     [&](jmp jmp) { fprintln(out, "jmp .bb_{}", jmp.target.i); },
-    [&](jcc jcc) { visit(jcc.op, [&](auto s) { fprintln(out, "j{} bb_{}", s.c_str(), jcc.target.i); }); },
+    [&](jcc jcc) { visit(jcc.op, [&](auto s) { fprintln(out, "j{} .bb_{}", s.c_str(), jcc.target.i); }); },
     [&](call call) { fprint(out, "call ");  dump_op(out, call.target, "l"_s); fprintln(out, ""); },
     [&](ret &) { fprintln(out, "ret"); },
     [](auto) {
@@ -64,6 +78,36 @@ static void dump_insn(FILE *out, insn insn) {
     }
   });
 }
+
+static data_type get_type(tree::type_decl type) {
+  using namespace tree;
+  return type(overload {
+    [](auto &)                      -> data_type { c9_assert(0); },
+    [](signed_char_type_t &)        -> data_type { return "b"_s; },
+    [](char_type_t &)               -> data_type { return "b"_s; },
+    [](unsigned_char_type_t &)      -> data_type { return "b"_s; },
+    [](short_type_t &)              -> data_type { return "w"_s; },
+    [](unsigned_short_type_t &)     -> data_type { return "w"_s; },
+    [](int_type_t &)                -> data_type { return "l"_s; },
+    [](unsigned_int_type_t &)       -> data_type { return "l"_s; },
+    [](long_type_t &)               -> data_type { return "q"_s; },
+    [](unsigned_long_type_t &)      -> data_type { return "q"_s; },
+    [](long_long_type_t &)          -> data_type { return "q"_s; },
+    [](unsigned_long_long_type_t &) -> data_type { return "q"_s; },
+    [](float_type_t  &)             -> data_type { return "l"_s; },
+    [](double_type_t &)             -> data_type { return "q"_s; },
+    [](long_double_type_t &)        -> data_type { return "q"_s; },
+  });
+}
+static size_t size(data_type dt) {
+  return visit(dt, overload {
+    [](decltype("b"_s)) { return 1; },
+    [](decltype("w"_s)) { return 2; },
+    [](decltype("l"_s)) { return 4; },
+    [](decltype("q"_s)) { return 8; },
+  });
+}
+
 struct codegen {
   std::vector<insn> insns;
   int sp{};

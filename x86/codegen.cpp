@@ -32,20 +32,6 @@ void codegen::dump(FILE *out) {
     fprintln(out, ".bb_{}:", (l++)->second);
 }
 
-data_type get_type(type_decl type) {
-  return type(overload {
-    [](auto &)                      -> data_type { c9_assert(0); },
-    [](char_type_t &)               -> data_type { return "b"_s; },
-    [](unsigned_char_type_t &)      -> data_type { return "b"_s; },
-    [](int_type_t &)                -> data_type { return "l"_s; },
-    [](unsigned_int_type_t &)       -> data_type { return "l"_s; },
-    [](long_type_t &)               -> data_type { return "q"_s; },
-    [](unsigned_long_type_t &)      -> data_type { return "q"_s; },
-    [](long_long_type_t &)          -> data_type { return "q"_s; },
-    [](unsigned_long_long_type_t &) -> data_type { return "q"_s; },
-  });
-}
-
 insn make_binary_insn(lex::binary_tok binary_op, data_type type, op lhs, op rhs) {
   return visit(binary_op, overload {
     [](auto) -> insn {},
@@ -81,8 +67,7 @@ void codegen::gen(tree::expression expr, op dst) {
     },
     [&](cast_expression_t &cast) {
       gen(cast.cast_from, dst);
-      if(get_type(cast.type).index() < get_type(cast.cast_from->type).index())
-        *this << movsx{get_type(cast.type), get_type(cast.cast_from->type), {dst, dst}};
+      *this << movsx{get_type(cast.type), get_type(cast.cast_from->type), {dst, dst}};
     },
     [&](unary_expression_t &expr) {
       gen(tree::op(expr.expr), dst);

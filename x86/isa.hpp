@@ -11,7 +11,7 @@ using sym = string;
 using op = variant<sym, intreg, xmmreg, int, indirect_op>;
 
 
-using data_type = variant_t<"b"_s, "l"_s, "q"_s, "ss"_s, "sd"_s>;
+using data_type = variant_t<"b"_s, "w"_s, "l"_s, "q"_s>;
 template<size_t opn, auto name> struct alu_insn { data_type type; op ops[opn]; };
 struct jmp { cfg::basic_block &target; };
 struct jcc : jmp {

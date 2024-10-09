@@ -88,8 +88,16 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
   return expr(overload {
     [](auto &) -> tree::expression {},
     [&](tree::cast_expression_t &cast) -> tree::expression {
-      cast.cast_from = construct(cast.cast_from);
-      return last_bb->add_assign(cast, make_tmp(cast.cast_to));
+      if(visit(cast.type, strip_type(cast.cast_from->type), overload {
+        [&](auto &lhs, auto &rhs) requires requires { lhs.is_integer(); rhs.is_integer(); } {
+          return lhs.rank < rhs.rank;
+        },
+        [](auto &, auto &) { return true; }
+      })) {
+        cast.cast_from = construct(cast.cast_from);
+        return last_bb->add_assign(cast, make_tmp(cast.type));
+      } else
+        return last_bb->add_assign(construct_expr_no_op(cast.cast_from), make_tmp(cast.type));
     },
     [&](tree::decl_expression_t &expr) -> tree::expression {
       if(auto var = (tree::variable) expr.declref) return construct_var(var);

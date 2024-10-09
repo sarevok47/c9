@@ -172,7 +172,7 @@ TREE_DEF(block_decl, : std::vector<decl>, decl_t {  });
 
 
 
-TREE_NARROW_DEF(type_decl, : decl_t { });
+TREE_NARROW_DEF(type_decl, : decl_t { size_t size; });
 
 
 
@@ -298,7 +298,7 @@ TREE_DEF(function, : decl_t, op_t {
 });
 
 TREE_NARROW_DEF(arithmetic_type, : scalar_type_t { constexpr bool is_arithmetic() { return true; } });
-TREE_NARROW_DEF(integer_type, : arithmetic_type_t { size_t size;  constexpr bool is_integer() { return true; }; });
+TREE_NARROW_DEF(integer_type, : arithmetic_type_t { constexpr bool is_integer() { return true; }; });
 
 TREE_NARROW_DEF(unsigned_integral_type, : integer_type_t { constexpr bool is_unsigned() { return true; } });
 TREE_NARROW_DEF(signed_integral_type,   : integer_type_t { constexpr bool is_signed()   { return true;} });
