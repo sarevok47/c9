@@ -30,6 +30,7 @@ type_decl strip_type(tree::type_decl type) {
   return type(overload {
     [](typedef_decl_t &t)  { return strip_type(t.type); },
     [](type_name_t    &t)  { return strip_type(t.type); },
+    [](enum_decl_t    &t)  { return strip_type(t.type); },
     [&](auto &)            { return type; }
   });
 }
@@ -92,6 +93,11 @@ cst tree_fold(expression expr, sv &err) {
         return cst;
       } else
         return cst;
+    },
+    [&](decl_expression_t decl) -> cst {
+      if(auto enum_ = (tree::enum_cst) decl.declref)
+        return do_cast(cst_t{ .data = enum_->value}, enum_->type->type);
+      return {};
     },
     [&](binary_expression_t binary) -> cst {
       auto lhs = tree_fold(binary.lhs, err), rhs = tree_fold(binary.rhs, err);

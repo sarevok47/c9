@@ -16,6 +16,7 @@ public:
   auto find(const Key &key)   {
     return std::ranges::find_if(storage, [&](auto &kv) { return kv.key == key; });
   }
+  size_t size() const { return storage.size(); }
 
   void push_back(key_value kv) { storage.push_back(mov(kv)); }
 

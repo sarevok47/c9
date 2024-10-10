@@ -101,6 +101,9 @@ tree::decl_expression semantics::build_decl_expression(location_t ref_loc, tree:
     [&](tree::variable_t &v) {
       r = tree::decl_expression{{{{.type = v.type, .loc = ref_loc}}, decl}};
     },
+    [&](tree::enum_cst_t &e) {
+      r = tree::decl_expression{{{{.type = e.type, .loc = ref_loc}}, decl}};
+    },
     [&](auto &) {
       d.diag(ref_loc, "error"_s, "typedef can't appear in expression");
     }

@@ -143,11 +143,31 @@ struct semantics {
   }
 
 
+  opt<__uint128_t> eval_enum_value(tree::expression expr, __uint128_t &count, tree::enum_decl type) {
+    opt<__uint128_t> r;
+    sv err;
+    if(auto cst = tree::tree_fold(expr, err)) {
+      visit(cst->data, overload {
+        [&](__uint128_t value) {
+          if(value >= type->type->size * (1ULL << type->type->size * 8) - 1)
+            d.diag(expr->loc, "error"_s, "enum constant overflows undelying type");
+          else {
+            count += value;
+            r = value;
+          }
+        },
+        [&](long double) { d.diag(expr->loc, "error"_s, "enum can't be floating point"); }
+      });
+    }
+    return r;
+  }
   template<class ...T> void redecl_error(rich_location rl, string name, tree::decl &decl, std::format_string<T...> fmt, T&& ...args) {
     d.diag(rl, "error"_s, "redeclaration of {} '{}' {}",
            decl(overload {
              [](tree::function_t &)     { return "function"; },
              [](tree::typedef_decl_t &) { return "typedef";  },
+             [](tree::enum_decl_t &)    { return "enum";  },
+             [](tree::enum_cst_t  &)    { return "enum constant";  },
              [](auto &)                 { return "variable"; }
            }),
            name, std::format(fmt, (decltype(args)) args...));

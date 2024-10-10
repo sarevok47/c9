@@ -326,7 +326,48 @@ bool parser::storage_class_specifier(storage_class_spec &scs) {
   | (keyword::static_,   [&] { scs = "static"_s;   })
   | (keyword::register_, [&] { scs = "register"_s; }));
 }
+bool parser::enum_specifier(tree::type_decl &td) {
+  location_t loc = peek_token().loc;
+  if(!(*this <= keyword::enum_))
+    return false;
+  sema::id name;
+  if(is<sema::id>(peek_token())) {
+    name = peek_token();
+    consume();
+  }
 
+  auto &node = get_or_def_node(name);
+  if(!node.enum_decl) {
+    node.enum_decl = tree::enum_decl{{.name = name.name, .type = tree::int_type_node}};
+    node.enum_decl->size = tree::int_type_node->size;
+  }
+  td = node.enum_decl;
+  if(*this <= "{"_s) {
+    __uint128_t count = 0;
+    while(!(*this <= "}"_s)) {
+      if(count && !(*this <= ","_s)) {
+        error(peek_token().loc, {}, "expected '}}' or ','");
+        break;
+      }
+
+      if(is<sema::id>(peek_token())) {
+        location_t loc = peek_token().loc;
+        sema::id name = peek_token();
+        consume();
+
+        auto cst = *this <= "="_s ? *eval_enum_value(conditional_expression(), count, node.enum_decl) : count++;
+        auto &cst_node = get_or_def_node(name);
+        if(cst_node.decl)
+          redecl_error({loc}, name.name, node.decl, "");
+        else
+          cst_node.decl = tree::enum_cst{{.value = cst, .type = node.enum_decl}};
+      }
+    }
+    node.enum_decl->def = true;
+  }
+
+  return true;
+}
 bool parser::struct_or_union_specifier(tree::type_decl &td) {
   bool is_struct;
 
@@ -380,19 +421,18 @@ bool parser::struct_or_union_specifier(tree::type_decl &td) {
           if(id.name.empty()) break;
         } while(*this <= ","_s);
 
-          if(!size) size = 1;
-
           if(!require(";"_s))
             break;
       }
+      if(!size) size = 1;
       *this <= "}"_req;
       if(name.name.size()
         && ((is_struct && node.struct_decl->definition) || (!is_struct && node.union_decl->definition))
       )
         error(start_loc, {}, "redeclaration of {} '{}'", is_struct ? "struct" : "union", name.name);
         else {
-          if(is_struct) node.struct_decl->definition = s;
-          else          node.union_decl->definition = s;
+          if(is_struct) { node.struct_decl->definition = s; node.struct_decl->size = size; }
+          else          { node.union_decl->definition = s;  node.union_decl->size  = size; }
         }
     }
 
@@ -425,6 +465,7 @@ bool parser::type_specifier(tree::type_name &type, type_spec_state &tcs) {
     | (keyword::float_ ,  [&] { type->type = tree::float_type_node;            })
     | (keyword::double_,  [&] { type->type = tree::double_type_node;           })
     | &parser::struct_or_union_specifier / type->type
+    | &parser::enum_specifier / type->type
     | &parser::typedef_spec / type);
 }
 

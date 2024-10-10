@@ -92,7 +92,7 @@ struct parser : sema::semantics, lex_spirit {
   bool storage_class_specifier(storage_class_spec &scs);
 
    bool struct_or_union_specifier(tree::type_decl &td);
-
+  bool enum_specifier(tree::type_decl &td);
   bool typedef_spec(tree::type_name &type);
   bool type_specifier(tree::type_name &type, type_spec_state &tcs);
 

@@ -7,7 +7,7 @@
 #include <set>
 #include "diagnostics.hpp"
 #include "flat-set.hpp"
-
+#include "flat-map.hpp"
 #include "x86/isa.hpp"
 
 namespace c9 {
@@ -365,6 +365,13 @@ TREE_DEF(float_cst_expression, : rvalue_t {
   float_cst_expression_t(long double value, floating_type type, source_range loc)
     : value{value}, rvalue_t{{.type = type, .loc = loc}} {}
 });
+
+TREE_DEF(enum_decl, : type_decl_t {
+  string name;
+  integer_type type;
+  bool def;
+});
+TREE_DEF(enum_cst, : decl_t { __uint128_t value; tree::enum_decl type; });
 TREE_DEF(compound_literal, : rvalue_t {
   type_decl typec; // TODO REMOVE
   initializer_list init;

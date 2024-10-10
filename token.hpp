@@ -14,6 +14,7 @@ namespace c9 {
       bool decl_implicit{};
       tree::struct_decl struct_decl;
       tree::union_decl union_decl;
+      tree::enum_decl enum_decl;
     };
 
 
