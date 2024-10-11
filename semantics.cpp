@@ -312,7 +312,9 @@ tree::return_statement semantics::build_return_statement(source_range loc, tree:
   if(expr) expr_type = strip_type(expr->type);
   if(!(type = get_common_type(lex::assign_tok{"="_s}, loc, strip_type(return_type), expr_type)))
     return {};
-  return {{ .expr =  tree::cast_expression{{ .cast_from = expr, .cast_to = strip_type(return_type)}} }};
+  tree::return_statement_t ret{.expr =  tree::cast_expression{{ .cast_from = expr, .cast_to = strip_type(return_type)}}};
+  ret.expr->type = type;
+  return ret;
 }
 
 

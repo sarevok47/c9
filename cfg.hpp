@@ -181,6 +181,9 @@ void visit_ops(auto &insn, auto &&f) {
       if constexpr(requires { expr.lhs; }) visit_ops(expr.lhs,  f);
       if constexpr(requires { expr.rhs; }) visit_ops(expr.rhs,  f);
     },
+    [&](tree::return_statement_t &ret) {
+      visit_ops(ret.expr, f);
+    },
     [&](tree::mov_t &mov) {
       visit_ops(mov.src, f);
       visit_ops(mov.dst, f);
