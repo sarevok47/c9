@@ -67,6 +67,8 @@ cst_t do_cast(cst_t value, arithmetic_type type) {
       [&](char_type_t)           { r.data = (__uint128_t) (char) value; },
       [&](unsigned_char_type_t)  { r.data = (__uint128_t) (unsigned char) value; },
       [&](signed_char_type_t)    { r.data = (__uint128_t) (signed char) value; },
+      [&](short_type_t)    { r.data = (__uint128_t) (short) value; },
+      [&](unsigned_short_type_t)  { r.data = (__uint128_t) (unsigned short) value; },
       [&](int_type_t)           { r.data = (__uint128_t) (int) value; },
       [&](unsigned_int_type_t)  { r.data = (__uint128_t) (unsigned int) value; },
       [&](long_type_t)           { r.data = (__uint128_t) (long) value; },

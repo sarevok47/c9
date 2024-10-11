@@ -86,7 +86,16 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
     return cst;
   expr->type = tree::strip_type(expr->type);
   return expr(overload {
-    [](auto &) -> tree::expression {},
+    [](auto &) -> tree::expression { fprint(stderr, "{}", __PRETTY_FUNCTION__); },
+    [&](tree::subscript_expression_t &expr) {
+      expr.of = construct(expr.of);
+      expr.with = construct(expr.with);
+      return expr;
+    },
+    [&](tree::dereference_t &deref) {
+      deref.expr = construct(deref.expr);
+      return expr;
+    },
     [&](tree::cast_expression_t &cast) -> tree::expression {
       if(visit(cast.type, strip_type(cast.cast_from->type), overload {
         [&](auto &lhs, auto &rhs) requires requires { lhs.is_integer(); rhs.is_integer(); } {
@@ -95,9 +104,12 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
         [](auto &, auto &) { return true; }
       })) {
         cast.cast_from = construct(cast.cast_from);
-        return last_bb->add_assign(cast, make_tmp(cast.type));
-      } else
-        return last_bb->add_assign(construct_expr_no_op(cast.cast_from), make_tmp(cast.type));
+        return expr;;
+      } else {
+        auto expr = construct_expr_no_op(cast.cast_from);
+        expr->type = cast.type;
+        return expr;
+      }
     },
     [&](tree::decl_expression_t &expr) -> tree::expression {
       if(auto var = (tree::variable) expr.declref) return construct_var(var);
@@ -108,19 +120,16 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
     [&](tree::assign_expression_t &assign) -> tree::expression {
       auto dst = construct(assign.lhs);
       auto src = construct_expr_no_op(assign.rhs);
-      last_bb->add_assign(src, dst);
-      return dst;
+      return last_bb->add_assign(src, dst);
     },
     [&](tree::binary_expression_t &b) -> tree::expression {
       b.lhs = construct(b.lhs);
       b.rhs = construct(b.rhs);
-      if(tree::op(b.lhs) && tree::op(b.rhs))
-        return expr;
-      return last_bb->add_assign(expr, make_tmp(b.type));
+      return expr;
     },
     [&](tree::unary_expression_t &u) -> tree::expression {
       u.expr = construct(u.expr);
-      return last_bb->add_assign(u, make_tmp(u.type));
+      return expr;
     },
     [&](tree::statement_expression_t &stmt_expr) -> tree::expression {
       for(auto stmt : *stmt_expr.stmts | iter_range) {
@@ -133,7 +142,7 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
     [&](tree::function_call_t &fun_call) {
       fun_call.calee = construct(fun_call.calee);
       for(auto &arg : fun_call.args) arg = construct(arg);
-      return last_bb->add_assign(fun_call, make_tmp(fun_call.type));
+      return fun_call;
     }
   });
 }

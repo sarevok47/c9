@@ -78,6 +78,9 @@ void tree_dump(FILE *out, tree::statement tree) {
       }
       fprintln(out, ")");
     },
+    [&](tree::compound_statement_t &compound) {
+      for(auto stmt : compound) tree_dump(out, stmt);
+    },
     [&](tree::phi_t phi) {
       fprint(out, "phi ");
       for(auto elt : phi.elts | iter_range) {

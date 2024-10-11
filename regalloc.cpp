@@ -55,7 +55,7 @@ void register_allocator::get_spill_reg_for_call(std::pair<tree::target_op, bool>
         process_interval(li);
         free_reg(li.reg);
         goto repeat;
-      } else if(p->reg == reg) {
+      } else if(p->reg == reg && p->start < insn_pos) {
         tree::compound_statement_t compound = {{}, std::vector<tree::statement>{
           tree::spill_statement{{.reg = p->reg->first, .op = p->op, }},
           *insn,

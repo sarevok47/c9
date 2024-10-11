@@ -212,7 +212,7 @@ tree::assign_expression semantics::build_assign_expression(lex::assign_tok op, t
 }
 
 tree::ternary_expression semantics::build_ternary_expression(tree::expression cond, tree::expression lhs, tree::expression rhs) {
-  if(!cond.is_narrow<tree::scalar_type_t>()) {
+  if(!cond->type.is_narrow<tree::scalar_type_t>()) {
     d.diag(cond->loc + rhs->loc, "error"_s, "operand of ternary expression must be scalar type");
     return {};
   }

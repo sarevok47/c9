@@ -16,6 +16,7 @@ bool parser::starts_typename(lex::token tok) {
                [](keyword kw) {
                  switch(kw) {
                    case keyword::void_:
+                   case keyword::unsigned_:
                    case keyword::int_:
                    case keyword::char_:
                    case keyword::long_:
@@ -43,7 +44,7 @@ tree::expression parser::primary_expression() {
       consume();
       if(!id.node || !id.node->decl)
         id = name_lookup(id.name);
-      if(id.node->decl)
+      if(id.node && id.node->decl)
         return build_decl_expression(loc, id.node->decl);
 
       error(loc, {}, "use undeclared '{}'", id.name);
@@ -349,6 +350,7 @@ bool parser::enum_specifier(tree::type_decl &td) {
         error(peek_token().loc, {}, "expected '}}' or ','");
         break;
       }
+      *this <= ","_s;
 
       if(is<sema::id>(peek_token())) {
         location_t loc = peek_token().loc;
@@ -475,29 +477,42 @@ bool parser::nested_attribute_list(std::vector<tree::attribute> &attr_list, tree
   for(bool tmp; tmp = *this <= keyword::__attribute___; *this <= ")"_req >> ")"_req) {
     r |= tmp;
     for(*this <= "("_req >> "("_req;;) {
-      auto tok = peek_token();
-      if(!require(type_c<sema::id>))
-        break;
+      auto t = peek_token();
+      string tok;
+      if(peek_token().is<keyword>())
+        consume(),
+        tok = stringnize((keyword) t);
+      else if(require(type_c<sema::id>))
+        tok = sema::id(t).name;
+      else break;
 
-      tree::attribute attr {.name = sema::id(tok).name };
+
+
+      tree::attribute attr {.name = tok };
 
       if(*this <= "("_s) {
-        if((attr.name == "access" || attr.name == "__format__") && is<sema::id>(peek_token())) {
+
+/*
+ if((attr.name == "access" || attr.name == "__format__") && is<sema::id>(peek_token())) {
           sema::id &id = peek_token();
           attr.arguments.emplace_back(tree::identifier_token{{  .loc = peek_token().loc, .str = id.name }});
           consume();
           *this <= ","_s;
         }
-
+ */
         if(peek_token() != ")"_s)
           for(;;) {
-            if(auto expr = expression())
+            if((attr.name == "access" || attr.name == "__format__") && is<sema::id>(peek_token())) {
+              sema::id &id = peek_token();
+              attr.arguments.emplace_back(tree::identifier_token{{  .loc = peek_token().loc, .str = id.name }});
+              consume();
+            } else if(auto expr = expression())
               attr.arguments.emplace_back(expr);
             if(!(*this <= ","_s))
               break;
           }
 
-          *this <= ")"_req;
+        *this <= ")"_req;
       }
 
       if(type && attr.name == "aligned" || attr.name == "packed")
@@ -593,7 +608,11 @@ tree::type_name parser::direct_declarator(sema::id &id, tree::type_name base, st
     if(starts_typename(peek_token()) || peek_token() == ")"_s) {
       attrs.insert(attrs.end(), start_attrs.begin(), start_attrs.end());
       tree::function_type_t fun{.return_type = base};
-      function_parameters(fun);
+      if(peek_token() != keyword::void_ || peek_2nd_token() != ")"_s)
+        function_parameters(fun);
+      else
+        *this <= keyword::void_ >> ")"_s;
+      attribute_list(attrs);
       fun.return_type = direct_declarator(id, fun.return_type, attrs);
       tree::function_type ptr = mov(fun);
       ptr->ptr_type = {{.type = ptr}};
