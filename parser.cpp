@@ -2,7 +2,7 @@
 
 #include "parse.hpp"
 #include "tree-trait.hpp"
-#include "semantics.hpp"
+#include "sema.hpp"
 
 namespace c9 { namespace parse {
 sema::id lex_spirit::lookup(lex::identifier s) { return parse.name_lookup(s); }

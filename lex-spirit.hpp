@@ -3,7 +3,7 @@
 #pragma once
 
 #include "lex.hpp"
-#include "semantics.hpp"
+#include "sema.hpp"
 
 namespace c9 { namespace parse {
 using lex::keyword;
