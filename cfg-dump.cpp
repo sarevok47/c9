@@ -15,6 +15,9 @@ void tree_dump(FILE *out, tree::statement tree) {
     [&](tree::variable_t &var) {
       fprint(out, "{}", var.name);
     },
+    [&](tree::string_cst_expression_t &expr) {
+      fprint(out, "\"{}\"", expr.value);
+    },
     [&](tree::function_t &fun) {
       fprint(out, "{}", fun.name);
     },

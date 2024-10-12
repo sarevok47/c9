@@ -108,7 +108,6 @@ static size_t size(data_type dt) {
     [](decltype("q"_s)) { return 8; },
   });
 }
-
 struct codegen {
   std::vector<insn> insns;
   int sp{};

@@ -273,10 +273,11 @@ TREE_DEF(cast_expression, : rvalue_t { expression cast_from; type_decl cast_to; 
 TREE_DEF(sizeof_expression, : rvalue_t {  variant<type_decl, expression> arg; });
 
 TREE_NARROW_DEF(builtin_type, : type_decl_t {});
-template<narrow<builtin_type_t> T> tree_value<T> type_node;
+template<narrow<builtin_type_t> T>  tree_value<T> type_node;
 #define BUILTIN_TYPE_DEF(name, a...) \
   TREE_DEF(name, a); \
-  static auto &name##_node =   type_node<name##_t>;
+  /*template extern tree_value<name##_t> type_node<name##_t>;*/\
+  extern tree_value<name##_t> &name##_node;
 BUILTIN_TYPE_DEF(void_type, : builtin_type_t {});
 TREE_NARROW_DEF(scalar_type, : builtin_type_t { constexpr bool is_scalar() { return true; } });
 
@@ -296,7 +297,6 @@ TREE_DEF(function, : decl_t, op_t {
   compound_statement definition;
   variant_t<""_s, "extern"_s, "static"_s> scs;
 });
-
 TREE_NARROW_DEF(arithmetic_type, : scalar_type_t { constexpr bool is_arithmetic() { return true; } });
 TREE_NARROW_DEF(integer_type, : arithmetic_type_t { constexpr bool is_integer() { return true; }; });
 
@@ -365,7 +365,13 @@ TREE_DEF(float_cst_expression, : rvalue_t {
   float_cst_expression_t(long double value, floating_type type, source_range loc)
     : value{value}, rvalue_t{{.type = type, .loc = loc}} {}
 });
-
+TREE_DEF(string_cst_expression, : rvalue_t {
+  string value, sym;
+  string_cst_expression_t(string value, integer_type type, source_range loc, size_t n)
+    : value{value}, rvalue_t{{.type = tree::pointer_t{.type = type}, .loc = loc}} {
+      sym = ".STR"s + std::to_string(n);
+    }
+});
 TREE_DEF(enum_decl, : type_decl_t {
   string name;
   integer_type type;
@@ -420,6 +426,7 @@ TREE_DEF(br,   : statement_t { tree::op cond; cfg::basic_block &true_, &false_; 
 TREE_DEF(ssa,  : decl_t      { tree::variable var; size_t ssa_count; });
 TREE_DEF(reload, : statement_t  { tree::target_op reg; tree::op op;  });
 TREE_DEF(spill_statement, : statement_t {  tree::target_op reg; tree::op op; });
+
 
 template<class T_t> tree_value<T_t>::operator bool() const { return !is<empty_node_t>(); }
 

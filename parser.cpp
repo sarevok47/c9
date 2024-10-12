@@ -50,6 +50,7 @@ tree::expression parser::primary_expression() {
       error(loc, {}, "use undeclared '{}'", id.name);
       return {};
     },
+    [&](lex::string_literal sl)  -> tree::expression{ return consume(), build_string(loc, sl); },
     [&](lex::numeric_constant nc) {
       consume();
       lex::interpret_status stat{};

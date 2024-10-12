@@ -70,7 +70,7 @@ public:
 struct semantics {
   driver &d;
   scope_manager<compound_scope, fn_scope, control_scope, switch_scope> scopes;
-
+  std::unordered_map<string, tree::string_cst_expression, string::hash> string_tab;
 
 
   auto &global_scope() { return scopes.stack.front(); }
@@ -172,6 +172,7 @@ struct semantics {
     return expr;
   }
 
+  tree::string_cst_expression build_string(source_range loc, lex::string_literal sl);
   template<class ...T> void redecl_error(rich_location rl, string name, tree::decl &decl, std::format_string<T...> fmt, T&& ...args) {
     d.diag(rl, "error"_s, "redeclaration of {} '{}' {}",
            decl(overload {

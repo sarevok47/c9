@@ -32,6 +32,45 @@ struct character {
 
   variant_t<""_s, "U"_s, "u"_s, "u8"_s, "L"_s, "L"_s> prefix;
 };
+
+uint64_t read_escaped_char(auto &&p, sv &err) {
+  if ('0' <= *p && *p <= '7') {
+    // Read an octal number.
+    uint64_t c = *p++ - '0';
+    if ('0' <= *p && *p <= '7') {
+      c = (c << 3) + (*p++ - '0');
+      if ('0' <= *p && *p <= '7')
+        c = (c << 3) + (*p++ - '0');
+    }
+    return c;
+  }
+
+  if (*p == 'x') {
+    // Read a hexadecimal number.
+    p++;
+    if (!isxdigit(*p))
+      err = "invalid hex escape sequence";
+
+
+    uint64_t c = 0;
+    for (; isxdigit(*p); p++)
+      c = (c << 4) + hexi(*p);
+    return c;
+  }
+
+  switch (*p++) {
+    case 'a': return '\a';
+    case 'b': return '\b';
+    case 't': return '\t';
+    case 'n': return '\n';
+    case 'v': return '\v';
+    case 'f': return '\f';
+    case 'r': return '\r';
+    // [GNU] \e for the ASCII escape character is a GNU C extension.
+    case 'e': return 27;
+    default: return p[-1];
+  }
+}
 /*
  * The numeric value of character constants in preprocessor expressions.
  * The preprocessor and compiler interpret character constants in the same way; i.e. escape sequences such as `\a' are given the values they would have on the target machine.
@@ -58,7 +97,7 @@ enum class interpret_status {
 
 static integer interpret_integer(numeric_constant nc, interpret_status &ok) {
   ok = {};
-  auto p = nc.begin();
+  const char *p = nc.begin();
 
 
   integer r{};
@@ -93,7 +132,7 @@ static integer interpret_integer(numeric_constant nc, interpret_status &ok) {
 
 static floating interpret_floating(numeric_constant nc, interpret_status &ok) {
   ok = {};
-  auto p = nc.begin();
+  const char *p = nc.begin();
   bool hex = *p == '0' && p + 1 != nc.end() && (p[1] == 'x' || p[1] == 'X');
 
 

@@ -22,8 +22,6 @@ void label_manager::lookup_label(string name, tree::goto_statement goto_) {
   else
     goto_->target = p->value;
 }
-
-
 tree::return_statement semantics::build_return_statement(source_range loc, tree::type_decl return_type, tree::expression expr) {
   tree::type_decl type, expr_type = tree::void_type_node;
   if(expr) expr_type = strip_type(expr->type);

@@ -83,6 +83,12 @@ public:
     data->n = len;
     std::copy_n(s, len, data->data);
   }
+  string(size_t len) {
+    data = sha.allocate(len);
+
+    data->count = 1;
+    data->n = len;
+  }
   string(const char *s) {
     size_t N = strlen(s);
     data = sha.allocate(N);
@@ -99,9 +105,9 @@ public:
   }
   char operator[](size_t n) const { return data->data[n]; }
 
-  const char *begin() { return data->data; }
+  char *begin() { return data->data; }
   const char *begin() const { return data->data; }
-  const char *end() { return data->data + data->n; }
+  char *end() { return data->data + data->n; }
   const char *end() const { return data->data + data->n; }
 
 

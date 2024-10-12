@@ -88,6 +88,7 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
   expr->type = tree::strip_type(expr->type);
   return expr(overload {
     [](auto &) -> tree::expression { fprint(stderr, "{}", __PRETTY_FUNCTION__); },
+    [&](tree::string_cst_expression_t &) { return expr; },
     [&](tree::subscript_expression_t &expr) {
       expr.of = construct(expr.of);
       expr.with = construct(expr.with);

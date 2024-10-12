@@ -1,5 +1,6 @@
 #pragma once
 #include "sema.hpp"
+#include "lex-conv.hpp"
 namespace c9 { namespace sema {
 tree::subscript_expression semantics::build_subscript_expression(source_range loc, tree::expression of, tree::expression with) {
   using namespace tree;
@@ -282,6 +283,51 @@ tree::expression semantics::build_unary_expression(source_range loc, lex::token 
     }
   });
   return r;
+}
+
+tree::string_cst_expression semantics::build_string(source_range loc, lex::string_literal sl) {
+  variant_t<""_s, "U"_s, "u"_s, "u8"_s, "L"_s> prefix;
+
+
+  /* TODO prefix corresponding type
+   * Prefix Corresponding Type
+   * none unsigned char
+   * u8 char8_t
+   * L the unsigned type corresponding to wchar_t
+   * u char16_t
+   * U char32_t */
+  tree::integer_type type = visit(prefix, overload {
+     [&](decltype(""_s)) { return tree::unsigned_char_type_node; },
+     [&](decltype("U"_s)) { return tree::unsigned_char_type_node; },
+     [&](decltype("u"_s)) { return tree::unsigned_char_type_node; },
+     [&](decltype("u8"_s)) { return tree::unsigned_char_type_node; },
+     [&](decltype("L"_s)) { return tree::unsigned_char_type_node; },
+  });
+c9_assert(type->size);
+  string processed((sl.size() + 1) * type->size);
+
+  auto dst = processed.begin();
+
+  auto src = sl.begin();
+  lex::scan_impl(src, prefix, variant_types(prefix), 0_c, ""_s);
+  ++src;
+
+  for(; src != sl.end() - 1; dst += type->size) {
+    if(*src == '\\') {
+      ++src; sv err;
+      auto c = lex::read_escaped_char(src, err);
+      if(err.size())
+        d.diag(loc, "error"_s, "{}", err);
+
+      memcpy(dst, &c, type->size);
+    } else
+      *dst = *src++;
+  }
+
+  if(auto &t = string_tab[processed])
+    return t;
+  else
+    return t = {{processed, type, loc, string_tab.size() - 1}};
 }
 
 }}

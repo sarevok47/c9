@@ -1,6 +1,28 @@
 #include "tree-trait.hpp"
 #include "token.hpp"
 namespace c9 { namespace tree {
+#define BUILTIN_TYPE_DEF(name, ...) \
+  template tree_value<name##_t> type_node<name##_t>; \
+  tree_value<name##_t> &name##_node = type_node<name##_t>;
+
+
+  BUILTIN_TYPE_DEF(void_type, );
+  BUILTIN_TYPE_DEF(char_type, : unsigned_integral_type_t {});
+  BUILTIN_TYPE_DEF(unsigned_char_type, : signed_integral_type_t {});
+  BUILTIN_TYPE_DEF(signed_char_type, : signed_integral_type_t {});
+  BUILTIN_TYPE_DEF(short_type, : signed_integral_type_t {});
+  BUILTIN_TYPE_DEF(unsigned_short_type, : unsigned_integral_type_t {});
+  BUILTIN_TYPE_DEF(int_type, : signed_integral_type_t {});
+  BUILTIN_TYPE_DEF(unsigned_int_type, : unsigned_integral_type_t {});
+  BUILTIN_TYPE_DEF(long_type, : signed_integral_type_t {});
+  BUILTIN_TYPE_DEF(unsigned_long_type, : unsigned_integral_type_t {});
+  BUILTIN_TYPE_DEF(long_long_type, : signed_integral_type_t {});
+  BUILTIN_TYPE_DEF(unsigned_long_long_type, : unsigned_integral_type_t {});
+
+  BUILTIN_TYPE_DEF(float_type,       : floating_type_t {});
+  BUILTIN_TYPE_DEF(double_type,      : floating_type_t {});
+  BUILTIN_TYPE_DEF(long_double_type, : floating_type_t {});
+#undef BUILTIN_TYPE_DEF
 bool operator==(type_decl lhs, type_decl rhs) {
   return visit(strip_type(lhs), strip_type(rhs), overload {
     [](pointer_t &lhs, pointer_t &rhs) { return lhs.type == rhs.type; },

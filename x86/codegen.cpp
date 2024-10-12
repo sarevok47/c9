@@ -94,6 +94,9 @@ void codegen::gen(tree::expression expr, op dst) {
       // TODO ADD TYPE HANDLER INSTEAD OF "q"_s
       *this << mov{"q"_s, {intreg::rax, dst}};
     },
+    [&](string_cst_expression_t &cst) {
+      *this << mov{"q"_s, {cst.sym, dst}};
+    },
     [&](binary_expression_t expr) {
       auto src = gen(tree::op(expr.lhs)), dst = gen(tree::op(expr.rhs));
       *this << make_binary_insn(expr.op, get_type(expr.type), src, dst);
