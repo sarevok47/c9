@@ -11,15 +11,22 @@ struct live_interval {
   size_t start{}, finish{}, spill_pos = -1;
   std::pair<tree::target_op, bool> *reg{};
   bool reload{};
+
+  bool operator==(live_interval li) { return op == li.op; }
+  bool operator<(live_interval li) const {
+     if (start == li.start)
+      return finish < li.finish;
+    return start < li.start;
+  }
 };
 class register_allocator {
-  std::vector<regalloc::live_interval> intervals;
+  std::set<regalloc::live_interval> intervals;
   std::vector<live_interval> active;
 
   void compute_interval(cfg::basic_block *bb, tree::op def);
   void compute_intervals();
   std::pair<tree::target_op, bool> *next_reg();
-  void get_spill_reg_for_call(std::pair<tree::target_op, bool> *reg, size_t insn_pos, std::list<tree::statement>::iterator insn);
+  void get_spill_reg_for_call(std::pair<tree::target_op, bool> *reg, size_t insn_pos, std::list<tree::statement>::iterator insn, tree::op dst);
   void reload(live_interval li, size_t insn_pos, std::list<tree::statement>::iterator insn);
   void process_interval(live_interval li);
   void next_interval(live_interval &i);
@@ -33,7 +40,7 @@ public:
 
   void operator()() {
     compute_intervals();
-    for(auto &i : intervals) next_interval(i);
+    for(auto i : intervals) next_interval(i);
 
     for(auto &a : active) process_interval(a);
   }

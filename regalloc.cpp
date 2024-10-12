@@ -22,7 +22,7 @@ void register_allocator::compute_interval(cfg::basic_block *bb, tree::op def) {
       ++insn_count;
     }
   }
-  intervals.emplace_back(li);
+  intervals.emplace(li);
 }
 void register_allocator::compute_intervals() {
   for(cfg::basic_block *bb = &cfg.entry; bb; bb = bb->step()) {
@@ -31,11 +31,6 @@ void register_allocator::compute_intervals() {
     for(auto def : bb->def.map<tree::temporary_t>())
       compute_interval(bb, def);
   }
-  std::ranges::sort(intervals, [](auto &a, auto &b) {
-    if (a.start == b.start)
-      return a.finish < b.finish;
-    return a.start < b.start;
-  });
 }
 std::pair<tree::target_op, bool> *register_allocator::next_reg() {
   if(auto p = std::ranges::find_if(tab, [](auto pair) { return pair.second; }); p != tab.end()) {
@@ -46,7 +41,7 @@ std::pair<tree::target_op, bool> *register_allocator::next_reg() {
 }
 
 
-void register_allocator::get_spill_reg_for_call(std::pair<tree::target_op, bool> *reg, size_t insn_pos, std::list<tree::statement>::iterator insn) {
+void register_allocator::get_spill_reg_for_call(std::pair<tree::target_op, bool> *reg, size_t insn_pos, std::list<tree::statement>::iterator insn, tree::op dst) {
   while(active.size()) {
     for(auto p : active | iter_range)
       if(p->finish < insn_pos) {
@@ -55,7 +50,7 @@ void register_allocator::get_spill_reg_for_call(std::pair<tree::target_op, bool>
         process_interval(li);
         free_reg(li.reg);
         goto repeat;
-      } else if(p->reg == reg && p->start < insn_pos) {
+      } else if(p->reg == reg && p->start < insn_pos && p->op != dst) {
         tree::compound_statement_t compound = {{}, std::vector<tree::statement>{
           tree::spill_statement{{.reg = p->reg->first, .op = p->op, }},
           *insn,
@@ -111,9 +106,9 @@ void register_allocator::process_interval(live_interval li) {
     for(auto insn : bb->insns | iter_range) {
       if(auto mov = (tree::mov) *insn)
         if(auto funcall = (tree::function_call) mov->src) {
-          get_spill_reg_for_call(ret_reg, insn_cnt, insn);
+          get_spill_reg_for_call(ret_reg, insn_cnt, insn, mov->dst);
           for(size_t i = 0; i != funcall->args.size(); ++i)
-            get_spill_reg_for_call(call_regs[i], insn_cnt, insn);
+            get_spill_reg_for_call(call_regs[i], insn_cnt, insn, mov->dst);
         }
 
       if(reg && insn_cnt == li.spill_pos) {
