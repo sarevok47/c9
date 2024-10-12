@@ -1,6 +1,7 @@
 #include "tree-trait.hpp"
 #include "token.hpp"
 namespace c9 { namespace tree {
+int_cst_expression true_cst, false_cst;
 bool operator==(type_decl lhs, type_decl rhs) {
   return visit(strip_type(lhs), strip_type(rhs), overload {
     [](pointer_t &lhs, pointer_t &rhs) { return lhs.type == rhs.type; },

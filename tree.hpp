@@ -366,6 +366,8 @@ TREE_DEF(float_cst_expression, : rvalue_t {
     : value{value}, rvalue_t{{.type = type, .loc = loc}} {}
 });
 
+extern int_cst_expression true_cst, false_cst;
+
 TREE_DEF(enum_decl, : type_decl_t {
   string name;
   integer_type type;

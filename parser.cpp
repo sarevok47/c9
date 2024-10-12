@@ -115,6 +115,8 @@ tree::expression parser::primary_expression() {
               return eval_sizeof_expression(loc, type);
             } else return eval_sizeof_expression(loc, unary_expression()->type);
           }
+          case keyword::true_: return tree::true_cst;
+          case keyword::false_: return tree::false_cst;
           default: break;
         }
         error(loc, {}, "primary expected");
@@ -841,8 +843,9 @@ tree::for_statement parser::for_statement() {
       for_.clause = expression();
     *this <= ";"_req;
   }
-  if(peek_token() != ";"_s)
-    for_.cond = expression();
+
+  for_.cond = peek_token() != ";"_s ? expression() : tree::true_cst;
+
   *this <= ";"_req;
   if(peek_token() != ")"_s)
     for_.step = expression();

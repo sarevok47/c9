@@ -58,8 +58,9 @@ struct cfg_stream {
   cfg_stream &operator>>(auto &&) { return *this; }
   cfg_stream &operator>>(basic_block *&bb) { bb = cfg.last_bb; return *this; }
   cfg_stream &operator>>(tree::op &op) { op = cfg.last_op; return *this;  }
-  cfg_stream &operator>>(tree::expression expr) { cfg.construct(expr); return *this;  }
-  cfg_stream &operator>>(tree::statement  stmt) { cfg.construct(stmt); return *this;  }
+  cfg_stream &operator>>(tree::expression expr) { if(expr) cfg.construct(expr); return *this;  }
+  cfg_stream &operator>>(tree::statement  stmt) { if(stmt) cfg.construct(stmt); return *this;  }
+  template<class ...T> cfg_stream &operator>>(variant<T...> &v) { visit(v, [&](auto tree) { if(tree) *this >> tree; }); return *this; }
 };
 
 cfg_stream control_flow_graph::cfg() { return cfg_stream{*this}; }
@@ -179,6 +180,26 @@ void control_flow_graph::construct(tree::statement stmt) {
             >> cond_bb->br(cond, *loop_body, add_bb(cond_bb));
 
       cond_bb->add_pred(loop_finish);
+    },
+    [&](tree::while_statement_t &while_) {
+      basic_block *cond_bb, *loop_body, *loop_finish;
+      tree::op cond;
+
+      cfg() >> add_bb(last_bb) >> cond_bb >> while_.cond >> cond
+            >> add_bb(last_bb) >> loop_body >> while_.body
+            >> last_bb->jump(*cond_bb)
+            >> cond_bb->br(cond, *loop_body, add_bb(cond_bb));
+
+      cond_bb->add_pred(last_bb);
+    },
+    [&](tree::do_while_statement_t &while_) {
+      basic_block *loop_body;
+      tree::op cond;
+
+      cfg() >> add_bb(last_bb) >> loop_body >> while_.body
+            >> while_.cond >> cond >> last_bb->br(cond, *loop_body, add_bb(last_bb));
+
+      loop_body->add_pred(last_bb);
     },
     [&](tree::return_statement_t &ret) {
       ret.expr = construct_expr_no_op(ret.expr);
