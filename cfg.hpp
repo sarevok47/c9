@@ -175,6 +175,7 @@ class control_flow_graph {public:
 void visit_ops(auto &insn, auto &&f) {
   insn(prioritizied_overload (
     [&](narrow<tree::op_t> auto &) { f(insn); },
+    [&](tree::function_call_t &fcall) { for(auto &arg : fcall.args) visit_ops(arg, f); },
     [&](narrow<tree::expression_t> auto &expr) {
       if constexpr(requires { expr.expr;}) visit_ops(expr.expr, f);
       if constexpr(requires { expr.cast_from; }) visit_ops(expr.cast_from, f);
