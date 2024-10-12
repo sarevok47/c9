@@ -156,6 +156,8 @@ struct parser : sema::semantics, lex_spirit {
   tree::return_statement return_statement();
   tree::statement statement();
 
+  tree::expression bool_expression() { return build_bool_expression(expression()); }
+
   template<class ...T>
   void error(location_t loc, std::initializer_list<location_t> locs, std::format_string<T...> fmt, T&& ...args) {
     rich_location rcl{loc, locs};

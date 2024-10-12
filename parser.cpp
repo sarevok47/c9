@@ -115,8 +115,8 @@ tree::expression parser::primary_expression() {
               return eval_sizeof_expression(loc, type);
             } else return eval_sizeof_expression(loc, unary_expression()->type);
           }
-          case keyword::true_: return tree::true_cst;
-          case keyword::false_: return tree::false_cst;
+          case keyword::true_:  return tree::int_cst_expression{{1, tree::int_type_node, loc}};
+          case keyword::false_: return tree::int_cst_expression{{0, tree::int_type_node, loc}};
           default: break;
         }
         error(loc, {}, "primary expected");
@@ -783,7 +783,7 @@ tree::type_name parser::type_name() {
 }
 tree::if_statement parser::if_statement() {
   tree::expression cond;
-  *this <= "("_req >> &parser::expression % cond >> ")"_req;
+  *this <= "("_req >> &parser::bool_expression % cond >> ")"_req;
 
   tree::statement if_stmt = statement(), else_stmt;
   if(*this <= keyword::else_)
@@ -811,7 +811,7 @@ tree::compound_statement parser::compound_statement() {
 
 tree::switch_statement parser::switch_statement() {
   tree::expression cond;
-  *this <= "("_s >> &parser::expression % cond >> ")"_req;
+  *this <= "("_s >> &parser::bool_expression % cond >> ")"_req;
 
   tree::switch_statement switch_{{.cond = cond}};
   switch_->stmt = secondary_block(sema::switch_scope{switch_});
@@ -819,14 +819,14 @@ tree::switch_statement parser::switch_statement() {
 }
 tree::while_statement parser::while_statement() {
   tree::expression cond;
-  *this <= "("_s >> &parser::expression % cond >> ")"_req;
+  *this <= "("_s >> &parser::bool_expression % cond >> ")"_req;
 
   return {{ .cond = cond, .body = secondary_block<sema::control_scope>() }};
 }
 tree::do_while_statement parser::do_while_statement() {
   tree::statement body = secondary_block<sema::control_scope>();
   tree::expression cond;
-  *this <= keyword::while_ >> "("_s >> &parser::expression % cond >> ")"_req;
+  *this <= keyword::while_ >> "("_s >> &parser::bool_expression % cond >> ")"_req;
 
   return {{.cond = cond, .body = body}};
 }
@@ -844,7 +844,7 @@ tree::for_statement parser::for_statement() {
     *this <= ";"_req;
   }
 
-  for_.cond = peek_token() != ";"_s ? expression() : tree::true_cst;
+  for_.cond = peek_token() != ";"_s ? bool_expression() : tree::int_cst_expression{{1, tree::int_type_node, peek_token().loc}};
 
   *this <= ";"_req;
   if(peek_token() != ")"_s)

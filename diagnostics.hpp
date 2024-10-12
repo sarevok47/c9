@@ -119,8 +119,8 @@ template<class ...T> void println(std::format_string<T...> fmt, T&& ...args) {
 
 using location_t = size_t;
 struct source_range {
-  location_t first = -1;
-  location_t last  = -1;
+  location_t first;
+  location_t last;
 
   source_range() = default;
   source_range(location_t first, location_t last) : first{first}, last{last} { c9_assert(last > first); }
@@ -277,9 +277,8 @@ public:
             caret(l);
         },
         [&](source_range sr) {
-          if(sr.first != -1) // NPOS
-            for(location_t l = sr.first; l != sr.last; ++l)
-              caret(l);
+          for(location_t l = sr.first; l != sr.last; ++l)
+            caret(l);
         }
       });
       caret(loc.main_loc, true);

@@ -161,6 +161,17 @@ struct semantics {
     }
     return r;
   }
+
+  tree::expression build_bool_expression(tree::expression expr) {
+    if(!(tree::scalar_type) expr->type) {
+      d.diag(expr->loc, "error"_s, "expression is not scalar");
+      return {};
+    }
+    if((tree::floating_type) expr->type)
+      return build_cast_expression(expr->loc, expr, tree::int_type_node);
+    return expr;
+  }
+
   template<class ...T> void redecl_error(rich_location rl, string name, tree::decl &decl, std::format_string<T...> fmt, T&& ...args) {
     d.diag(rl, "error"_s, "redeclaration of {} '{}' {}",
            decl(overload {
