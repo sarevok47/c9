@@ -15,6 +15,10 @@ void tree_dump(FILE *out, tree::statement tree) {
     [&](tree::variable_t &var) {
       fprint(out, "{}", var.name);
     },
+    [&](tree::dereference_t deref) {
+      fprint(out, "*");
+      tree_dump(out, deref.expr);
+    },
     [&](tree::string_cst_expression_t &expr) {
       fprint(out, "\"{}\"", expr.value);
     },
