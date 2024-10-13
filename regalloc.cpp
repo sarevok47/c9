@@ -76,6 +76,8 @@ void register_allocator::get_spill_reg_for_call(std::pair<tree::target_op, bool>
   }
 }
 void register_allocator::reload(live_interval li, size_t insn_pos, std::list<tree::statement>::iterator insn) {
+  if(bool b{}; cfg::visit_ops(*insn, [&](auto &op) { b |= tree::op(op) == li.op; }), !b)
+    return;
   for(auto p : active | iter_range)
     if(p->finish < insn_pos) {
       auto liold = *p;
@@ -92,7 +94,7 @@ void register_allocator::reload(live_interval li, size_t insn_pos, std::list<tre
         *insn
       }};
       *insn = compound;
-      break;
+      return;
     }
   auto reg = next_reg()->first.cpy();
   reg->type = li.op->type;
