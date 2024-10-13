@@ -55,8 +55,8 @@ class defusechain {
   }
 public:
   template<class T> auto &map() { return std::get<get_idx(type_c<T>)>(storage); }
-  void insert(tree::op op) { visit(op, [&](auto &&value, auto &map) { map.insert(value); }); }
-  void erase(tree::op op) {  visit(op, [&](auto &&value, auto &map) { map.erase(value); }); }
+  void insert(tree::op op) { visit(op, [&]<class T>(T &&, auto &map) { map.insert(tree::tree_value<T>(op)); }); }
+  void erase(tree::op op) {  visit(op, [&]<class T>(T &&, auto &map) { map.erase(tree::tree_value<T>(op)); }); }
   tree::op find(tree::op op) {
     tree::op r;
     visit(op, [&](auto &&value, auto &map) {
@@ -136,6 +136,8 @@ class control_flow_graph {public:
   size_t &nlabel, ntmp{}, nssa{};size_t insn_count{};
   basic_block entry{*this}, *last_bb = &entry;
   tree::op last_op;
+
+  defusechain vars;
 
   tree::op make_tmp(tree::type_decl type) {
     tree::temporary_t tmp{.idx = ntmp++};

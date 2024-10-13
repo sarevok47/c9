@@ -419,7 +419,7 @@ bool parser::struct_or_union_specifier(tree::type_decl &td) {
             [&](auto &) {
               if(is_struct ) size += strip_type(type)->size;
               else size = std::max(size, strip_type(type)->size);
-              s.fields.push_back({{ .name = id.name, .type = type, .attrs = mov(attrs) }});
+              s.fields.push_back({{id.name, type, mov(attrs)}});
             }
           });
 

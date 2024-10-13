@@ -237,7 +237,6 @@ struct declarator {
 };
 TREE_DEF(variable, : decl_t, op_t {
   string name;
-  type_decl type;
   expression definition;
 
   bool is_global {};
@@ -245,6 +244,9 @@ TREE_DEF(variable, : decl_t, op_t {
 
   std::vector<attribute> attrs;
   size_t ssa_count{}, ssa_tab_n{};
+
+  variable_t(string name, type_decl type, bool is_global, auto scs) : name{name}, op_t{{.type = type}}, is_global{is_global}, scs{scs} {}
+  variable_t(string name, type_decl type, std::vector<attribute> attrs) : name{name}, op_t{{.type = type}}, attrs{mov(attrs)} {}
 });
 TREE_DEF(access_member, : lvalue_t { expression expr; variable member; });
 TREE_DEF(pointer_access_member, : lvalue_t { expression expr; variable member; });

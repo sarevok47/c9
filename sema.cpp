@@ -124,10 +124,7 @@ tree::decl semantics::build_decl(rich_location rl, id id, tree::type_name type, 
       .scs = scs_assign(decltype(tree::function_t::scs){}, scs)
     }};
   else
-    decl = tree::variable{{.name = id.name, .type = type->type,
-      .is_global = id.is_global_scope(),
-      .scs = scs_assign(decltype(tree::variable_t::scs){}, scs)
-    }};
+    decl = tree::variable{{id.name,  type->type, id.is_global_scope(), scs_assign(decltype(tree::variable_t::scs){}, scs) }};
   return decl;
 }
 

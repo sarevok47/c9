@@ -2,7 +2,7 @@
 
 namespace c9 { namespace regalloc {
 void register_allocator::compute_interval(cfg::basic_block *bb, tree::op def) {
-  regalloc::live_interval li{def, bb, (size_t) -1, {}, {}};
+  regalloc::live_interval li{def, bb};
   li.spill_pos = -1;
   bool start = true;
   for(cfg::basic_block *bb1 = bb; bb1; bb1 = bb1->step()) {
@@ -25,12 +25,22 @@ void register_allocator::compute_interval(cfg::basic_block *bb, tree::op def) {
   intervals.emplace(li);
 }
 void register_allocator::compute_intervals() {
+  for(auto def : cfg.vars.map<tree::variable_t>())
+    compute_interval(&cfg.entry, def);
   for(cfg::basic_block *bb = &cfg.entry; bb; bb = bb->step()) {
     for(auto def : bb->def.map<tree::ssa_variable_t>())
       compute_interval(bb, def);
     for(auto def : bb->def.map<tree::temporary_t>())
       compute_interval(bb, def);
   }
+
+#if 0
+  for(auto interval : intervals) {
+    fprint(stderr, "interval: '");
+    cfg::tree_dump(stderr, interval.op);
+    fprintln(stderr, "' start: {}, finish: {}", interval.start, interval.finish);
+  }
+#endif
 }
 std::pair<tree::target_op, bool> *register_allocator::next_reg() {
   if(auto p = std::ranges::find_if(tab, [](auto pair) { return pair.second; }); p != tab.end()) {
@@ -84,6 +94,8 @@ void register_allocator::reload(live_interval li, size_t insn_pos, std::list<tre
     }
   auto reg = next_reg();
   c9_assert(reg);
+
+  bool dst = tree::mov(*insn) && tree::mov(*insn)->dst == li.op;
   cfg::visit_ops(*insn, [&](auto &op) {
     if(tree::op(op) == li.op) op = reg->first;
   });
@@ -91,6 +103,8 @@ void register_allocator::reload(live_interval li, size_t insn_pos, std::list<tre
     tree::reload{{.reg = reg->first, .op = li.op}},
     *insn
   }};
+  if(dst)
+    compound.emplace_back(tree::spill_statement{{.reg = reg->first, .op = li.op, }});
   *insn = compound;
 }
 
@@ -145,6 +159,12 @@ void register_allocator::next_interval(live_interval &i) {
       }
       break;
     repeat:
+  }
+
+  if(tree::variable(i.op)) {
+    i.spill_pos = i.start;
+    process_interval(i);
+    return;
   }
 
   if(auto reg = next_reg()) {

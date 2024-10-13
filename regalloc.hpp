@@ -8,7 +8,7 @@ namespace c9 { namespace regalloc {
 struct live_interval {
   tree::op op;
   cfg::basic_block *entry;
-  size_t start{}, finish{}, spill_pos = -1;
+  size_t start{}, finish{1}, spill_pos = -1;
   std::pair<tree::target_op, bool> *reg{};
   bool reload{};
 
@@ -20,6 +20,7 @@ struct live_interval {
   }
 };
 class register_allocator {
+  // By some reason flat_set works without bug
   std::set<regalloc::live_interval> intervals;
   std::vector<live_interval> active;
 

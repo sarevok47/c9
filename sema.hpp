@@ -54,7 +54,7 @@ public:
     if constexpr(__is_same(S, fn_scope))
       for(auto &dector : s.type->params)
         stack.back()->operator[](dector.name).decl = tree::variable{{
-          .name = dector.name, .type = dector.type
+           dector.name, dector.type, false, ""_s
         }};
   }
   void pop_scope() {
