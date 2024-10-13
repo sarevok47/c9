@@ -155,6 +155,7 @@ tree::default_ =  [] {
           regalloc::register_allocator alloc{cfg, x86::intreg{}, x86::op{}, x86::int_call_conv_sysv, x86::int_ret_reg};
           alloc.tab[size_t(x86::intreg::rsp)].second = false;
           alloc.tab[size_t(x86::intreg::rbp)].second = false;
+          alloc.tab[size_t(x86::intreg::rip)].second = false;
           alloc();
 #if 1
 

@@ -19,13 +19,13 @@ static void dump_op(FILE *out, op op, data_type type) {
       };
       sv _16[] = {
         "ax", "cx", "dx", "bx", "si", "di", "bp", "sp",
-        "r8w", "r9w", "r10w", "r11w", "r12w", "r13w", "r14w", "r15w"
+        "r8w", "r9w", "r10w", "r11w", "r12w", "r13w", "r14w", "r15w", "ip"
       };
       sv _64[] = {
-        "rax", "rcx","rdx", "rbx", "rsi", "rdi", "rbp", "rsp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"
+        "rax", "rcx","rdx", "rbx", "rsi", "rdi", "rbp", "rsp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "rip"
       };
       sv _32[] = {
-        "eax", "ecx", "edx", "ebx", "esi", "edi", "ebp", "esp", "r8d", "r9d", "r10d", "r11d", "r12d", "r13d", "r14d", "r15d"
+        "eax", "ecx", "edx", "ebx", "esi", "edi", "ebp", "esp", "r8d", "r9d", "r10d", "r11d", "r12d", "r13d", "r14d", "r15d", "eip"
       };
       size_t idx = size_t(intreg);
       fprint(out, "%{}",
@@ -37,9 +37,16 @@ static void dump_op(FILE *out, op op, data_type type) {
              })[idx]);
     },
     [&](xmmreg xmmreg) { fprint(out, "%xmm_{}", size_t(xmmreg)); },
-    [&](indirect_op op) {
-      fprint(out, "{}(", op.offset);
+    [&](narrow<memop> auto op) {
+      visit(op.offset, [&](auto offset) { fprint(out, "{}(", offset); });
       dump_op(out, op.base, "q"_s);
+      if constexpr(requires { op.index; }) {
+        fprint(out, ", ");
+        dump_op(out, op.index, "q"_s);
+        if constexpr(requires { op.scale; })
+          visit(op.scale, [&](auto c) { fprint(out, ", {}", c()); });
+      }
+
       fprint(out, ")");
     },
     [&](int imm) { fprint(out, "${}", imm); },

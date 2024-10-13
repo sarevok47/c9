@@ -46,10 +46,14 @@ op codegen::gen(tree::op operand) {
       return (x86::op) op.data;
     },
     [&](tree::reload_t &reload) {
-      auto &pos = local_vars[reload.op];
-      if(!pos) pos = sp += 4;
       auto reg = (op) tree::target_op(reload.reg)->data;
-      *this << mov{get_type(reload.op->type), {indirect_op{intreg::rsp, (int) pos}, reg }};
+      if(auto var = (tree::variable) reload.op; var && var->is_global)
+        *this << mov{get_type(reload.op->type), {var->name, reg }};
+      else {
+        auto &pos = local_vars[reload.op];
+        if(!pos) pos = sp += 4;
+        *this << mov{get_type(reload.op->type), {memop{intreg::rsp, (int) pos}, reg }};
+      }
       return reg;
     },
     [&](cst_t cst) {
@@ -71,7 +75,7 @@ void codegen::gen(tree::expression expr, op dst) {
     },
     [&](dereference_t &deref) {
       gen(deref.expr, dst);
-      *this << mov{get_type(deref.type), { indirect_op{dst, 0}, dst}};
+      *this << mov{get_type(deref.type), { memop{dst, 0}, dst}};
     },
     [&](unary_expression_t &expr) {
       gen(tree::op(expr.expr), dst);
@@ -120,12 +124,17 @@ void codegen::gen(tree::statement stmt) {
     [&](spill_statement_t &spill) {
       auto &pos = local_vars[spill.op];
       if(!pos) pos = sp += 4;
-      *this << mov{get_type(spill.op->type), {gen(tree::op(spill.reg)), indirect_op{intreg::rsp, (int) pos} }};
+      *this << mov{get_type(spill.op->type), {gen(tree::op(spill.reg)), memop{intreg::rsp, (int) pos} }};
     },
     [&](reload_t &reload) {
-      auto &pos = local_vars[reload.op];
-      if(!pos) pos = sp += 4;
-      *this << mov{get_type(reload.op->type), {indirect_op{intreg::rsp, (int) pos}, gen(tree::op(reload.reg)) }};
+      auto reg = gen(tree::op(reload.reg));
+      if(auto var = (tree::variable) reload.op; var && var->is_global)
+        *this << mov{get_type(reload.op->type), {memop{intreg::rip, var->name}, reg }};
+      else {
+        auto &pos = local_vars[reload.op];
+        if(!pos) pos = sp += 4;
+        *this << mov{get_type(reload.op->type), {memop{intreg::rsp, (int) pos}, reg }};
+      }
     },
     [&](br_t br) {
       *this << test{get_type(br.cond->type), {gen(br.cond), gen(br.cond)}};
