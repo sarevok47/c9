@@ -21,7 +21,7 @@ struct live_interval {
 };
 class register_allocator {
   // By some reason flat_set works without bug
-  std::set<regalloc::live_interval> intervals;
+  flat_set<regalloc::live_interval> intervals;
   std::vector<live_interval> active;
 
   void compute_interval(cfg::basic_block *bb, tree::op def);
