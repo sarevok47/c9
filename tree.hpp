@@ -203,7 +203,7 @@ TREE_DEF(ternary_expression, : rvalue_t { expression cond, lhs, rhs; });
 
 
 TREE_DEF(postcrement_expression, : rvalue_t { lex::crement_tok op; expression expr; });
-TREE_DEF(addressof, : rvalue_t { lvalue of; });
+TREE_DEF(addressof, : rvalue_t { expression expr; });
 TREE_DEF(dereference, : lvalue_t { expression expr; });
 
 TREE_DEF(function_call, : rvalue_t { expression calee; std::vector<expression> args; });
@@ -244,6 +244,7 @@ TREE_DEF(variable, : decl_t, op_t {
 
   std::vector<attribute> attrs;
   size_t ssa_count{}, ssa_tab_n{};
+  bool alias{};
 
   variable_t(string name, type_decl type, bool is_global, auto scs) : name{name}, op_t{{.type = type}}, is_global{is_global}, scs{scs} {}
   variable_t(string name, type_decl type, std::vector<attribute> attrs) : name{name}, op_t{{.type = type}}, attrs{mov(attrs)} {}

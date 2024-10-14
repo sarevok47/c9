@@ -65,7 +65,7 @@ struct cfg_stream {
 
 cfg_stream control_flow_graph::cfg() { return cfg_stream{*this}; }
 tree::op control_flow_graph::construct_var(tree::variable var) {
-  if(var->is_global) {
+  if(var->is_global || var->alias) {
     vars.insert(var);
     last_bb->use.insert(var);
     return var;
@@ -97,6 +97,10 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
     },
     [&](tree::dereference_t &deref) {
       deref.expr = construct(deref.expr);
+      return expr;
+    },
+    [&](tree::addressof_t &addr) {
+      addr.expr = construct(addr.expr);
       return expr;
     },
     [&](tree::cast_expression_t &cast) -> tree::expression {

@@ -76,6 +76,9 @@ void register_allocator::get_spill_reg_for_call(std::pair<tree::target_op, bool>
   }
 }
 void register_allocator::reload(live_interval li, size_t insn_pos, std::list<tree::statement>::iterator insn) {
+  if(auto mov = (tree::mov) *insn)
+    if(auto addr = (tree::addressof) mov->src)
+      return;
   if(bool b{}; cfg::visit_ops(*insn, [&](auto &op) { b |= tree::op(op) == li.op; }), !b)
     return;
   for(auto p : active | iter_range)

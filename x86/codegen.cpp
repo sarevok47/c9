@@ -56,6 +56,13 @@ op codegen::gen(tree::op operand) {
       }
       return reg;
     },
+    [&](tree::variable_t &var) -> op {
+      return var.is_global ? memop{intreg::rip, var.name} : ({
+        auto &pos = local_vars[operand];
+        if(!pos) pos = sp += 4;
+        memop{intreg::rsp, (int) pos};
+      });
+    },
     [&](cst_t cst) {
       return (int) (__uint128_t) cst.data;
     },
@@ -76,6 +83,9 @@ void codegen::gen(tree::expression expr, op dst) {
     [&](dereference_t &deref) {
       gen(deref.expr, dst);
       *this << mov{get_type(deref.type), { memop{dst, 0}, dst}};
+    },
+    [&](addressof_t &addr) {
+      *this << lea{get_type(addr.type), { gen(tree::op(addr.expr)), dst }};
     },
     [&](unary_expression_t &expr) {
       gen(tree::op(expr.expr), dst);

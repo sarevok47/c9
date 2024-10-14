@@ -217,7 +217,8 @@ tree::expression semantics::build_unary_expression(source_range loc, lex::token 
         d.diag(loc, "error"_s, "addressof expression requires lvalue");
         return;
       }
-      tree::addressof_t addr{.of = (tree::lvalue) expr};
+      tree::addressof_t addr{.expr = expr};
+      travel_lvalue(expr, [&](tree::variable var) { var->alias = true; });
       addr.loc = loc;
       addr.type = tree::pointer{{.type = expr->type}};
       r = addr;
