@@ -10,6 +10,13 @@
 #include <stack>
 
 namespace c9 { namespace sema {
+struct node_t {
+  tree::decl decl; // typedef or variable name
+  bool decl_implicit{};
+  tree::struct_decl struct_decl;
+  tree::union_decl union_decl;
+  tree::enum_decl enum_decl;
+};
 using storage_class_spec = variant_t<""_s, "typedef"_s, "extern"_s, "static"_s, "auto"_s, "register"_s>;
 class label_manager {
   flat_map<string, tree::label> labels;

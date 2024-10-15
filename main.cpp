@@ -158,7 +158,6 @@ tree::default_ =  [] {
           alloc.tab[size_t(x86::intreg::rip)].second = false;
           alloc();
 #if 1
-
           x86::codegen codegen{};
 
           codegen.gen(cfg.entry);

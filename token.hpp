@@ -4,29 +4,17 @@
 #include "diagnostics.hpp"
 #include "string.hpp"
 #include <utility>
-#include "tree.hpp"
-
 
 namespace c9 {
-  namespace sema {
-    struct node_t {
-      tree::decl decl; // typedef or variable name
-      bool decl_implicit{};
-      tree::struct_decl struct_decl;
-      tree::union_decl union_decl;
-      tree::enum_decl enum_decl;
-    };
+namespace sema {
+struct id {
+  string name;
+  size_t level;
+  struct node_t *node{};
 
-
-    struct id {
-      string name;
-      size_t level;
-      node_t *node{};
-
-      bool is_global_scope() { return !level; }
-    };
-
-  }
+  bool is_global_scope() { return !level; }
+};
+}
 namespace lex {
 
 enum class flags : uint8_t {
