@@ -258,8 +258,10 @@ void control_flow_graph::convert_to_two_address_code() {
         mov->src(overload {
           [](auto &) {},
           [&](auto &expr) requires requires { expr.lhs; expr.rhs; } {
-            bb.insns.insert(insn, tree::mov{{.src = expr.rhs, .dst = mov->dst}});
-            expr.rhs = mov->dst;
+            tree::mov pre{{.src = expr.rhs, .dst = mov->dst}};
+            expr.rhs = pre->dst;
+            tree::compound_statement_t i{{}, { pre, *insn }};
+            *insn = i;
           }
         });
       }

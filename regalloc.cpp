@@ -53,7 +53,7 @@ std::pair<tree::target_op, bool> *register_allocator::next_reg() {
 template<class T> T comp_exp_cast(tree::base tree) {
   if(auto r = (T) tree) return r;
   if(auto c = (tree::compound_statement) tree)
-    for(auto tree : *c) if(T r = (T) tree) return r;
+    for(auto tree : *c) return comp_exp_cast<T>(tree);
   return {};
 }
 
@@ -87,6 +87,22 @@ void register_allocator::reload(live_interval li, size_t insn_pos, std::list<tre
       return;
   if(bool b{}; cfg::visit_ops(*insn, [&](auto &op) { b |= tree::op(op) == li.op; }), !b)
     return;
+
+  auto reload = [&](auto reg) {
+    bool src{}, dst{};
+    if(auto mov = comp_exp_cast<tree::mov>(*insn)) {
+      dst = mov->dst == li.op;
+      cfg::visit_ops(mov->src, [&](auto &op) { src |= tree::op(op) == li.op; });
+    }
+
+    cfg::visit_ops(*insn, [&](auto &op) { if(tree::op(op) == li.op) op = reg; });
+    tree::compound_statement_t compound;
+    if(src) compound.emplace_back(tree::reload{{.reg = reg, .op = li.op}});
+    compound.emplace_back(*insn);
+    if(dst) compound.emplace_back(tree::spill_statement{{.reg = reg, .op = li.op, }});
+    *insn = compound;
+  };
+
   for(auto p : active | iter_range)
     if(p->finish < insn_pos) {
       auto liold = *p;
@@ -95,30 +111,11 @@ void register_allocator::reload(live_interval li, size_t insn_pos, std::list<tre
       free_reg(liold.reg);
       auto reg = liold.reg->first.cpy();
       reg->type = li.op->type;
-      cfg::visit_ops(*insn, [&](auto &op) {
-        if(tree::op(op) == li.op) op = reg;
-      });
-      tree::compound_statement_t compound = {{}, std::vector<tree::statement>{
-        tree::reload{{.reg = reg, .op = li.op}},
-        *insn
-      }};
-      *insn = compound;
-      return;
+      return reload(reg);
     }
   auto reg = next_reg()->first.cpy();
   reg->type = li.op->type;
-
-  bool dst = tree::mov(*insn) && tree::mov(*insn)->dst == li.op;
-  cfg::visit_ops(*insn, [&](auto &op) {
-    if(tree::op(op) == li.op) op = reg;
-  });
-  tree::compound_statement_t compound = {{}, std::vector<tree::statement>{
-    tree::reload{{.reg = reg, .op = li.op}},
-    *insn
-  }};
-  if(dst)
-    compound.emplace_back(tree::spill_statement{{.reg = reg, .op = li.op, }});
-  *insn = compound;
+  reload(reg);
 }
 
 void register_allocator::process_interval(live_interval li) {

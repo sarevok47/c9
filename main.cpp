@@ -137,9 +137,9 @@ tree::default_ =  [] {
           cfg.construct(fun.definition);
           c9::tree_opt::constprop(cfg);
           c9::tree_opt::cse(cfg);
-
           cfg.unssa();
           cfg.convert_to_two_address_code();
+
           /*tree::ssa_variable tab[cfg.nssa + 1];
           cfg.collect_phi_operands(tab);
 */
