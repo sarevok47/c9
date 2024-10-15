@@ -50,6 +50,12 @@ std::pair<tree::target_op, bool> *register_allocator::next_reg() {
     return {};
 }
 
+template<class T> T comp_exp_cast(tree::base tree) {
+  if(auto r = (T) tree) return r;
+  if(auto c = (tree::compound_statement) tree)
+    for(auto tree : *c) if(T r = (T) tree) return r;
+  return {};
+}
 
 void register_allocator::get_spill_reg_for_call(std::pair<tree::target_op, bool> *reg, size_t insn_pos, std::list<tree::statement>::iterator insn, tree::op dst) {
   while(active.size()) {
@@ -76,7 +82,7 @@ void register_allocator::get_spill_reg_for_call(std::pair<tree::target_op, bool>
   }
 }
 void register_allocator::reload(live_interval li, size_t insn_pos, std::list<tree::statement>::iterator insn) {
-  if(auto mov = (tree::mov) *insn)
+  if(auto mov = comp_exp_cast<tree::mov>(*insn))
     if(auto addr = (tree::addressof) mov->src)
       return;
   if(bool b{}; cfg::visit_ops(*insn, [&](auto &op) { b |= tree::op(op) == li.op; }), !b)
@@ -125,7 +131,7 @@ void register_allocator::process_interval(live_interval li) {
 
   for(cfg::basic_block *bb = li.entry; bb; bb = bb->step()) {;
     for(auto insn : bb->insns | iter_range) {
-      if(auto mov = (tree::mov) *insn)
+      if(auto mov = comp_exp_cast<tree::mov>(*insn))
         if(auto funcall = (tree::function_call) mov->src) {
           get_spill_reg_for_call(ret_reg, insn_cnt, insn, mov->dst);
           for(size_t i = 0; i != funcall->args.size(); ++i)
