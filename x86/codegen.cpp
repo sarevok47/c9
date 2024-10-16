@@ -45,17 +45,6 @@ op codegen::gen(tree::op operand) {
     [&](tree::target_op_t op) {
       return (x86::op) op.data;
     },
-    [&](tree::reload_t &reload) {
-      auto reg = (op) tree::target_op(reload.reg)->data;
-      if(auto var = (tree::variable) reload.op; var && var->is_global)
-        *this << mov{get_type(reload.op->type), {var->name, reg }};
-      else {
-        auto &pos = local_vars[reload.op];
-        if(!pos) pos = sp += 4;
-        *this << mov{get_type(reload.op->type), {memop{intreg::rsp, (int) pos}, reg }};
-      }
-      return reg;
-    },
     [&](tree::variable_t &var) -> op {
       return var.is_global ? memop{intreg::rip, var.name} : ({
         auto &pos = local_vars[operand];
@@ -132,9 +121,14 @@ void codegen::gen(tree::statement stmt) {
       for(auto stmt : compound) gen(stmt);
     },
     [&](spill_statement_t &spill) {
-      auto &pos = local_vars[spill.op];
-      if(!pos) pos = sp += 4;
-      *this << mov{get_type(spill.op->type), {gen(tree::op(spill.reg)), memop{intreg::rsp, (int) pos} }};
+      auto reg = gen(tree::op(spill.reg));
+      if(auto var = (tree::variable) spill.op; var && var->is_global)
+        *this << mov{get_type(spill.op->type), {reg, memop{intreg::rip, var->name} }};
+      else {
+        auto &pos = local_vars[spill.op];
+        if(!pos) pos = sp += 4;
+        *this << mov{get_type(spill.op->type), {reg, memop{intreg::rsp, (int) pos} }};
+      }
     },
     [&](reload_t &reload) {
       auto reg = gen(tree::op(reload.reg));
