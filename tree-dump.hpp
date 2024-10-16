@@ -2,175 +2,98 @@
 
 #include "tree.hpp"
 
-
-
 namespace c9 { namespace tree {
+struct type_exp_format {
+  tree::type_decl type;
 
+  void operator()(std::format_context& ctx, tree::type_decl type) { type([&](auto &t) { (*this)(ctx, t); }); }
 
-struct dumper {
-  FILE *out;
-
-  template<class ...T> void dump_print(size_t ntab, std::format_string<T...> fmt, T&& ...args) {
-    fprint(out, "{:->{}}", ">", ntab);
-    fprintln(out, fmt, (decltype(args)) args...);
+  void operator()(std::format_context& ctx, auto &t) {
+    if constexpr(requires { t.name; }) std::format_to(ctx.out(), "{}", t.name);
+    else c9_assert(0);
   }
-
-  template<class T> void dump(tree_value<T> tv, size_t ntab = 0) { tv([&](auto &tree) { dump(tree, ntab); }); }
-private:
-  void dump(auto&, size_t) {
-    fprintln(out, "{}", __PRETTY_FUNCTION__);
-  }
-
-  void dump(empty_node_t &, size_t ntab) { dump_print(ntab, "empty-node");  }
-// types
-  void dump(char_type_t &, size_t ntab) { dump_print(ntab, "char");}
-  void dump(unsigned_char_type_t &, size_t ntab) { dump_print(ntab, "unsigned char");}
-  void dump(signed_char_type_t &, size_t ntab) { dump_print(ntab, "signed char");}
-  void dump(int_type_t &, size_t ntab) { dump_print(ntab, "int");}
-  void dump(long_type_t &, size_t ntab) { dump_print(ntab, "long");}
-  void dump(long_long_type_t &, size_t ntab) { dump_print(ntab, "long long");}
-  void dump(unsigned_int_type_t &, size_t ntab) { dump_print(ntab, "unsigned int");}
-  void dump(unsigned_long_type_t &, size_t ntab) { dump_print(ntab, "unsigned long");}
-  void dump(unsigned_long_long_type_t &, size_t ntab) { dump_print(ntab, "unsigned long long");}
-
-  void dump(typedef_decl_t &tf, size_t ntab) {
-    dump_print(ntab, "typedef: {}", tf.name);
-    dump(tf.type, ntab + 2);
-  }
-  void dump(record_decl_t& rd, size_t ntab) {
-    dump_print(ntab, "fields:");
-    for(auto field : rd.fields) dump(field, ntab + 2);
-  }
-  template<derived_from<structural_decl_t> T> void dump(T &structural, size_t ntab) {
-    dump_print(ntab, "{}: {}", __is_same(T, struct_decl_t) ? "struct" : "union", structural.name);
-    dump(structural.definition, ntab + 2);
-  }
-  void dump(function_type_t fun_type, size_t ntab) {
-    dump_print(ntab, "function-type: ");
-    dump_print(ntab + 2, "return-type: ");
-    dump(fun_type.return_type, ntab + 4);
-
-    if(fun_type.params.size()) {
-      dump_print(ntab + 2, "params: ");
-      for(auto param : fun_type.params) {
-        dump_print(ntab + 4, "name: {}", param.name);
-        dump(param.type, ntab + 4);
-      }
-    }
-  }
-  void dump(decl_expression_t &expr, size_t ntab) {
-    dump_print(ntab, "decl-expression: ");
-    dump(expr.declref, ntab + 2);
-  }
-  void dump(pointer_t &ptr, size_t ntab) {
-    dump_print(ntab, "pointer: ");
-    dump(ptr.type, ntab + 2);
-  }
-  void dump(type_name_t &t, size_t ntab) {
+  void operator()(std::format_context& ctx, narrow<tree::builtin_type_t> auto &builtin) { if constexpr(requires { builtin.name; }) std::format_to(ctx.out(), "{}", builtin.name); }
+  void operator()(std::format_context& ctx, tree::type_name_t &type) {
     std::string str;
-    if(t.is_const)
+    if(type.is_const)
       str += "const ";
-    if(t.is_volatile)
+    if(type.is_volatile)
       str += "volatile ";
-    if(t.is_restrict)
+    if(type.is_restrict)
       str += "restrict ";
-    dump_print(ntab, "type: {}", str);
-    dump(t.type, ntab + 2);
+    std::format_to(ctx.out(), "{}", str);
+    (*this)(ctx, type.type);
   }
-  void dump(array_t &arr, size_t ntab) {
-    dump_print(ntab, "array:");
-    dump_print(ntab + 2, "size: ");
-    dump(arr.numof, ntab + 4);
-    dump_print(ntab + 2, "of: ");
-    dump(arr.type, ntab + 4);
+  void operator()(std::format_context& ctx, tree::typedef_decl_t &type) {
+    std::format_to(ctx.out(), "{} (", type.name);
+    (*this)(ctx, type.type);
+    std::format_to(ctx.out(), ")", type.name);
   }
-// declarations
-  void dump(variable_t &var, size_t ntab) {
-    dump_print(ntab, "var-decl: {}", var.name);
-    dump(var.type, ntab + 2);
-    dump_print(ntab + 2, "definition:");
-    dump(var.definition, ntab + 4);
+  void operator()(std::format_context& ctx, tree::function_type_t &fn, size_t ptrs = 0) {
+    (*this)(ctx, fn.return_type);
+    std::format_to(ctx.out(), "({:*>{}}) ", "", ptrs);
+    std::format_to(ctx.out(), "(");
+    for(auto param : fn.params | iter_range) {
+      (*this)(ctx,  param->type);
+      if(param + 1 != fn.params.end()) std::format_to(ctx.out(), ", ");
+    }
+    std::format_to(ctx.out(), ")");
   }
-  void dump(function_t &fun, size_t ntab) {
-    dump_print(ntab, "function: {}", fun.name);
-    dump(fun.type, ntab + 2);
-    dump_print(ntab + 2, "definition: ");
-    dump(fun.definition, ntab + 4);
-  }
-// statement
-  void dump(compound_statement_t &compound, size_t ntab) {
-    dump_print(ntab, "compound-statement:");
-    for(auto &stmt : compound) dump(stmt, ntab + 2);
-  }
-  void dump(if_statement_t &if_, size_t ntab) {
-    dump_print(ntab, "if-statement: ");
-    dump_print(ntab + 2, "cond:");
-    dump(if_.cond, ntab + 2);
-    dump_print(ntab + 2, "if:");
-    dump(if_.if_stmt, ntab + 4);
-    if_.else_stmt(overload {
-      [](empty_node_t &) {},
-      [&](auto &else_) { dump_print(ntab + 2, "else:"); dump(else_, ntab + 4); }
-    });
-  }
-// expressions
-  void dump(int_cst_expression_t &expr, size_t ntab) {
-    dump_print(ntab, "integer-constant: value: '{}'", expr.value);
-  }
-  void dump(binary_expression_t &expr, size_t ntab) {
-    visit(expr.op, [&](auto s) {
-      dump_print(ntab, "binary-expression: op: {}", s.c_str());
-    });
-    dump(expr.lhs, ntab + 2);
-    dump(expr.rhs, ntab + 2);
-  }
-  void dump(unary_expression_t &expr, size_t ntab) {
-    visit(expr.op, [&](auto s) {
-      dump_print(ntab, "unary-expression: op: {}", s.c_str());
-    });
-    dump(expr.expr, ntab + 2);
-  }
-  void dump(cast_expression_t &expr, size_t ntab) {
-    dump_print(ntab, "cast-expression:");
-    dump(expr.cast_from, ntab + 2);
-    dump(expr.cast_to, ntab + 2);
-  }
-  void dump(compound_literal_t &expr, size_t ntab) {
-    dump_print(ntab, "compound-literal:");
-    dump(expr.type, ntab + 2);
-    dump(expr.init, ntab + 2);
-  }
-  void dump(ternary_expression_t &ternary, size_t ntab) {
-    dump_print(ntab, "ternary-expression:");
-    dump_print(ntab + 2, "cond:");
-    dump(ternary.cond, ntab + 4);
-    dump_print(ntab + 2, "lhs");
-    dump(ternary.lhs, ntab + 4);
-    dump_print(ntab + 2, "rhs:");
-    dump(ternary.rhs, ntab + 4);
-  }
-  void dump(initializer_list_t &dlist, size_t ntab) {
-    dump_print(ntab, "initializer-list:");
-    for(auto &init : dlist.list) {
-      for(auto &designator : init.dchain)
-        visit(designator, overload {
-          [&](expression_t &expr) { dump(expr, ntab + 4); },
-          [&](tree::initializer_list_t::array_designator arr) {
-            dump_print(ntab + 2, "array-designator:");
-            dump(arr.index, ntab + 4);
-          },
-          [&](tree::initializer_list_t::struct_designator struct_) {
-            dump_print(ntab + 2, "struct-designator: {}", struct_.field_name);;
-          },
-        });
-      dump_print(ntab + 2, "initializer:");
-      dump(init.init, ntab + 4);
+  void operator()(std::format_context& ctx, tree::pointer_t &ptr) {
+    auto exp = ptr.type; size_t ptrs = 1;
+    while(auto p = (tree::pointer) exp) ++ptrs, exp = p->type;
+    if(auto fn = (tree::function_type) exp)
+      (*this)(ctx, *fn, ptrs);
+    else {
+      (*this)(ctx, exp);
+      std::format_to(ctx.out(), " {:*>{}}", "", ptrs);
     }
   }
 };
 
+struct dumper {
+  FILE *out;
+  size_t ntab = 0;
 
+  template<class ...T> void print(std::format_string<T...> fmt, T&& ...args) {
+    fprint(out, "{: >{}}", "|-", ntab * 2);
+    fprintln(out, fmt, (decltype(args)) args...);
+  }
+  template<class T> void operator()(tree::tree_value<T> tree) { ++ntab; tree([&](auto &t) { (*this)(t); }); --ntab; }
+  void operator()(auto &tree) {
+    sv fnname = __PRETTY_FUNCTION__;
+    auto tree_name = [&] {
+      auto start = fnname.find_first_of('=') + sizeof(" c9::tree::");
+      auto end   = fnname.find_first_of(']') - 1;
+      return sv{fnname.begin() + start, fnname.begin() + end};
+    }();
 
+    print("{}:", tree_name);
+    if constexpr(requires { tree.fields; })
+      for(auto field : tree.fields) (*this)(field);
+    if constexpr(__is_same(decltype(tree), tree::compound_statement_t &))
+      for(auto stmt : tree)  (*this)(stmt);
+#define FIELD_NAME(name) if constexpr(requires { tree.name; }) ++ntab,print(#name ": {}", tree.name), --ntab;
+    FIELD_NAME(name) FIELD_NAME(size)
 
+#define FIELD(f) if constexpr(requires { tree.f; }) (*this)(tree.f);
+    FIELD(expr) FIELD(cond)  FIELD(declref) FIELD(lhs) FIELD(rhs) FIELD(member)
+    FIELD(value) FIELD(sym)  FIELD(type) FIELD(init) FIELD(if_stmt) FIELD(else_stmt) FIELD(stmt) FIELD(return_type)
+    FIELD(cast_from) FIELD(cast_to) FIELD(definition)
+#undef FIELD
+  }
+
+  template<char ...c> void operator()(string_seq<c...> str) { print("{}", str.c_str()); }
+  //template<auto ...v> void operator()(variant_t<v...> variant) { visit(variant, [&](auto value) { (*this)(value); }); }
+};
 
 }}
+template<> struct std::formatter<c9::tree::type_exp_format> {
+  constexpr auto parse(auto &ctx) {
+    return ctx.begin();
+  }
+  auto format(c9::tree::type_exp_format &f, std::format_context& ctx) const {
+    f(ctx, f.type);
+    return ctx.out();
+  }
+};

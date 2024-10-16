@@ -494,15 +494,6 @@ bool parser::nested_attribute_list(std::vector<tree::attribute> &attr_list, tree
       tree::attribute attr {.name = tok };
 
       if(*this <= "("_s) {
-
-/*
- if((attr.name == "access" || attr.name == "__format__") && is<sema::id>(peek_token())) {
-          sema::id &id = peek_token();
-          attr.arguments.emplace_back(tree::identifier_token{{  .loc = peek_token().loc, .str = id.name }});
-          consume();
-          *this <= ","_s;
-        }
- */
         if(peek_token() != ")"_s)
           for(;;) {
             if((attr.name == "access" || attr.name == "__format__") && is<sema::id>(peek_token())) {
@@ -550,7 +541,7 @@ bool parser::declspec(decl_specifier_seq &dss, bool scs_ok) {
       return r;
     }())
     r = true;
-
+  if(dss.type->type) dss.type->size = dss.type->type->size;
   process_type_spec(tss, dss.type->type);
   return r;
 }
@@ -568,7 +559,7 @@ auto parser::parameter_declaration() {
   dss.type = declarator(id, dss.type, dss.attrs);
 
   if(dss.type->type.is<tree::function_type_t>())
-    dss.type = tree::make_pointer(dss.type);
+    dss.type = tree::type_name{{d.t.make_ptr(dss.type) }};
   return tree::declarator{ .name = id.name, .type = dss.type };
 }
 
@@ -618,13 +609,14 @@ tree::type_name parser::direct_declarator(sema::id &id, tree::type_name base, st
       attribute_list(attrs);
       fun.return_type = direct_declarator(id, fun.return_type, attrs);
       tree::function_type ptr = mov(fun);
-      ptr->ptr_type = {{.type = ptr}};
-      return tree::type_name{{.type = ptr}};
+      ptr->ptr_type = d.t.make_ptr(base);
+      return tree::type_name{{ptr}};
     } else {
-      tree::type_name stub = tree::type_name_t{ .attrs = mov(start_attrs) };
+      tree::type_name stub = tree::type_name_t{ };
       auto type = declarator(id, stub, attrs);
       *this <= ")"_req;
       *stub = *direct_declarator(id, base, attrs);
+      stub->attrs.insert(stub->attrs.end(), start_attrs.begin(), start_attrs.end());
       return type;
     }
   }
@@ -633,7 +625,7 @@ tree::type_name parser::direct_declarator(sema::id &id, tree::type_name base, st
     if(peek_token() != "]"_s)
       numof = assignment_expression();
     *this <= "]"_req;
-    return tree::type_name{{.type = tree::array{{.type = base, .numof = numof}}}};
+    return tree::type_name{{tree::array{{.type = base, .numof = numof}}}};
   }
   return base;
 }
@@ -641,7 +633,7 @@ tree::type_name parser::direct_declarator(sema::id &id, tree::type_name base, st
 tree::type_name parser::declarator(sema::id &id, tree::type_name base, std::vector<tree::attribute> &attrs) {
   tree::type_name type = base;
   auto make_pointer = [&] {
-    type = tree::type_name{{.type = tree::pointer{{.type = type}}}};
+    type = tree::type_name{{d.t.make_ptr(type) }};
   };
 
   while(*this <= ("*"_s, make_pointer) >> *(&parser::type_qualifer / type
@@ -695,7 +687,7 @@ tree::decl parser::init_decl(decl_specifier_seq &dss, bool tail) {
   auto dector_type = declarator(dector_name, dss.type, dss.attrs);
   if(dector_name.name.empty()) {
     *this <= ";"_req;
-    return {};
+    return dector_type;
   }
 
   location_t loc = peek_token().loc;
@@ -717,7 +709,7 @@ tree::decl parser::init_decl(decl_specifier_seq &dss, bool tail) {
         return !(*this <= ";"_s);
       }
       bool body = !tail && *this <= ("{"_s, [&] {
-        scopes.push_scope<sema::fn_scope>({fun.type});
+        scopes.push_scope<sema::fn_scope>({(tree::function_type) fun.type});
       tree::compound_statement_t compound;
       while(peek_token() && peek_token() != "}"_s)
         compound.emplace_back(block_item());

@@ -139,7 +139,9 @@ constexpr static intreg int_ret_reg = intreg::rax;
 
 
 struct x86_target : target {
-  x86_target() {
+
+  tree::pointer make_ptr(tree::type_decl type) override { return {{type, 8}};  }
+  x86_target()  {
     ptrdiff_type_node = tree::long_type_node;
     size_type_node = tree::unsigned_long_type_node;
     predefined_macro = R""(

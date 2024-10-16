@@ -1,6 +1,7 @@
 #pragma once
 #include "sema.hpp"
 #include "lex-conv.hpp"
+#include "tree-dump.hpp"
 namespace c9 { namespace sema {
 tree::subscript_expression semantics::build_subscript_expression(source_range loc, tree::expression of, tree::expression with) {
   using namespace tree;
@@ -75,7 +76,7 @@ tree::decl_expression semantics::build_decl_expression(location_t ref_loc, tree:
   tree::decl_expression r;
   decl(overload {
     [&](tree::function_t &f) {
-      r = tree::decl_expression{{{{.type = f.type->ptr_type, .loc = ref_loc}}, decl}};
+      r = tree::decl_expression{{{{.type = tree::function_type(f.type)->ptr_type, .loc = ref_loc}}, decl}};
     },
     [&](tree::variable_t &v) {
       r = tree::decl_expression{{{{.type = v.type, .loc = ref_loc}}, decl}};
@@ -137,7 +138,7 @@ tree::type_decl semantics::get_common_type(variant<lex::binary_tok, lex::assign_
   using namespace tree;
   return visit(lhstype, rhstype, [&]<class L, class R>(L &l, R &r) -> type_decl {
     if(!visit(op, [&](auto op) { return is_compatible(op, l, r); })) {
-      d.diag(loc, "error"_s, "incompatible types");
+      d.diag(loc, "error"_s, "incompatible types ({} and {})", type_exp_format{lhstype}, type_exp_format{rhstype});
       return {};
     }
 
@@ -220,7 +221,7 @@ tree::expression semantics::build_unary_expression(source_range loc, lex::token 
       tree::addressof_t addr{.expr = expr};
       travel_lvalue(expr, [&](tree::variable var) { var->alias = true; });
       addr.loc = loc;
-      addr.type = tree::pointer{{.type = expr->type}};
+      addr.type = d.t.make_ptr(expr->type);
       r = addr;
     },
     [&](decltype("*"_s)) {
@@ -328,7 +329,7 @@ c9_assert(type->size);
   if(auto &t = string_tab[processed])
     return t;
   else
-    return t = {{processed, type, loc, string_tab.size() - 1}};
+    return t = {{processed, d.t.make_ptr(type), loc, string_tab.size() - 1}};
 }
 
 }}

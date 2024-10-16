@@ -25,6 +25,7 @@ constexpr auto binary_puncs = tuple(
 constexpr auto unary_puncs = tuple("+"_s, "-"_s, "~"_s, "!"_s);
 constexpr auto crement_puncs = tuple("++"_s, "--"_s);
 using binary_tok = decltype(binary_puncs([](auto ...x) { return variant_t<x...>{}; }));
+using unary_tok = decltype(unary_puncs([](auto ...x) { return variant_t<x...>{}; }));
 using assign_tok = decltype(assign_puncs([](auto ...x) { return variant_t<x...>{}; }));
 using crement_tok = decltype(crement_puncs([](auto ...x) { return variant_t<x...>{}; }));
 
@@ -188,15 +189,15 @@ TREE_DEF(comma_expression, : rvalue_t { expression lhs, rhs; });
 
 
 TREE_DEF(binary_expression, :rvalue_t {
-  decltype(lex::binary_puncs([](auto ...x) { return variant_t<x...>{}; })) op;
+  lex::binary_tok op;
   expression lhs, rhs;
 });
 TREE_DEF(unary_expression, : rvalue_t {
-  decltype(lex::unary_puncs([](auto ...x) { return variant_t<x...>{}; })) op;
+  lex::unary_tok op;
   expression expr;
 });
 TREE_DEF(assign_expression, : lvalue_t {
-  decltype(lex::assign_puncs([](auto ...x) { return variant_t<x...>{}; })) op;
+  lex::assign_tok op;
   expression lhs, rhs;
 });
 TREE_DEF(ternary_expression, : rvalue_t { expression cond, lhs, rhs; });
@@ -230,6 +231,10 @@ TREE_DEF(type_name, : type_decl_t {
   type_decl type;
   bool is_const {}, is_volatile {}, is_restrict {};
   std::vector<attribute> attrs;
+
+  type_name_t() = default;
+  type_name_t(std::vector<attribute> attrs) : attrs{mov(attrs)} {}
+  type_name_t(type_decl type);
 });
 struct declarator {
   string name;
@@ -284,7 +289,12 @@ template<narrow<builtin_type_t> T>  tree_value<T> type_node;
 BUILTIN_TYPE_DEF(void_type, : builtin_type_t {});
 TREE_NARROW_DEF(scalar_type, : builtin_type_t { constexpr bool is_scalar() { return true; } });
 
-TREE_DEF(pointer, : scalar_type_t { type_decl type; constexpr bool is_pointer(); });
+TREE_DEF(pointer, : scalar_type_t {
+  type_decl type;
+  constexpr bool is_pointer();
+
+  pointer_t(type_decl type, size_t size) : type{type} { this->size = size; }
+});
 TREE_DEF(function_type, : type_decl_t {
   std::vector<declarator> params;
   type_name return_type;
@@ -296,9 +306,10 @@ TREE_DEF(function_type, : type_decl_t {
 });
 TREE_DEF(function, : decl_t, op_t {
   string name;
-  function_type type;
   compound_statement definition;
   variant_t<""_s, "extern"_s, "static"_s> scs;
+
+  function_t(string name, auto type, auto scs) : name{name}, op_t{{.type = type}}, scs{scs} {}
 });
 TREE_NARROW_DEF(arithmetic_type, : scalar_type_t { constexpr bool is_arithmetic() { return true; } });
 TREE_NARROW_DEF(integer_type, : arithmetic_type_t { constexpr bool is_integer() { return true; }; });
@@ -354,9 +365,9 @@ BUILTIN_TYPE_DEF(unsigned_long_long_type, : unsigned_integral_type_t {
 
 TREE_NARROW_DEF(floating_type, : arithmetic_type_t { });
 
-BUILTIN_TYPE_DEF(float_type,       : floating_type_t {});
-BUILTIN_TYPE_DEF(double_type,      : floating_type_t {});
-BUILTIN_TYPE_DEF(long_double_type, : floating_type_t {});
+BUILTIN_TYPE_DEF(float_type,       : floating_type_t { constexpr static sv name = "float"; });
+BUILTIN_TYPE_DEF(double_type,      : floating_type_t { constexpr static sv name = "double"; });
+BUILTIN_TYPE_DEF(long_double_type, : floating_type_t { constexpr static sv name = "long double"; });
 
 TREE_DEF(int_cst_expression, : rvalue_t {
   uint64_t value;
@@ -370,8 +381,9 @@ TREE_DEF(float_cst_expression, : rvalue_t {
 });
 TREE_DEF(string_cst_expression, : rvalue_t {
   string value, sym;
-  string_cst_expression_t(string value, integer_type type, source_range loc, size_t n)
-    : value{value}, rvalue_t{{.type = tree::pointer_t{.type = type}, .loc = loc}} {
+  string_cst_expression_t(string value, pointer type, source_range loc, size_t n)
+    : value{value}, rvalue_t{{.loc = loc}} {
+      this->type = type;
       sym = ".STR"s + std::to_string(n);
     }
 });
@@ -482,7 +494,7 @@ template<class T_t> template<narrow<T_t> U> tree_value<T_t>::operator tree_value
   ++r.data->count;
   return r;
 }
-
+inline type_name_t::type_name_t(type_decl type) : type{type} { this->size = type->size; }
 
 inline variable record_decl_t::find(string name) {
   c9_assert(name.size());

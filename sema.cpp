@@ -120,9 +120,7 @@ tree::decl semantics::build_decl(rich_location rl, id id, tree::type_name type, 
 
   id.node->decl_implicit = implicit;
   if(funtype)
-    decl = tree::function{{.name = id.name, .type = funtype,
-      .scs = scs_assign(decltype(tree::function_t::scs){}, scs)
-    }};
+    decl = tree::function{{id.name, funtype,  scs_assign(decltype(tree::function_t::scs){}, scs)}};
   else
     decl = tree::variable{{id.name,  type->type, id.is_global_scope(), scs_assign(decltype(tree::variable_t::scs){}, scs) }};
   return decl;

@@ -72,64 +72,64 @@ int main(int argc, char **argv) {
 
 
 
-	{
-		using namespace  tree;
-#define BUILTIN_TYPE_DEF(name, ...) \
+  {
+    using namespace  tree;
+    #define BUILTIN_TYPE_DEF(name, ...) \
     { name##_t t; t.size = x86::size(x86::get_type(t)); \
-    type_node<name##_t> = t; }
+      type_node<name##_t> = t; }
 
 
-    void_type_node = void_type_t{};
+      void_type_node = void_type_t{};
 
-  	BUILTIN_TYPE_DEF(char_type, : unsigned_integral_type_t {});
-  	BUILTIN_TYPE_DEF(unsigned_char_type, : signed_integral_type_t {});
-  	BUILTIN_TYPE_DEF(signed_char_type, : signed_integral_type_t {});
-  	BUILTIN_TYPE_DEF(short_type, : signed_integral_type_t {});
-  	BUILTIN_TYPE_DEF(unsigned_short_type, : unsigned_integral_type_t {});
-  	BUILTIN_TYPE_DEF(int_type, : signed_integral_type_t {});
-  	BUILTIN_TYPE_DEF(unsigned_int_type, : unsigned_integral_type_t {});
-  	BUILTIN_TYPE_DEF(long_type, : signed_integral_type_t {});
-  	BUILTIN_TYPE_DEF(unsigned_long_type, : unsigned_integral_type_t {});
-  	BUILTIN_TYPE_DEF(long_long_type, : signed_integral_type_t {});
-  	BUILTIN_TYPE_DEF(unsigned_long_long_type, : unsigned_integral_type_t {});
+      BUILTIN_TYPE_DEF(char_type, : unsigned_integral_type_t {});
+      BUILTIN_TYPE_DEF(unsigned_char_type, : signed_integral_type_t {});
+      BUILTIN_TYPE_DEF(signed_char_type, : signed_integral_type_t {});
+      BUILTIN_TYPE_DEF(short_type, : signed_integral_type_t {});
+      BUILTIN_TYPE_DEF(unsigned_short_type, : unsigned_integral_type_t {});
+      BUILTIN_TYPE_DEF(int_type, : signed_integral_type_t {});
+      BUILTIN_TYPE_DEF(unsigned_int_type, : unsigned_integral_type_t {});
+      BUILTIN_TYPE_DEF(long_type, : signed_integral_type_t {});
+      BUILTIN_TYPE_DEF(unsigned_long_type, : unsigned_integral_type_t {});
+      BUILTIN_TYPE_DEF(long_long_type, : signed_integral_type_t {});
+      BUILTIN_TYPE_DEF(unsigned_long_long_type, : unsigned_integral_type_t {});
 
-  BUILTIN_TYPE_DEF(float_type,       : floating_type_t {});
-  BUILTIN_TYPE_DEF(double_type,      : floating_type_t {});
-  BUILTIN_TYPE_DEF(long_double_type, : floating_type_t {});
+      BUILTIN_TYPE_DEF(float_type,       : floating_type_t {});
+      BUILTIN_TYPE_DEF(double_type,      : floating_type_t {});
+      BUILTIN_TYPE_DEF(long_double_type, : floating_type_t {});
 
 
-	}
-x86_target t;
+  }
+  x86_target t;
   driver d{.t = t};
 
   auto &ff = d.files["../../tmp.cpp"];
 
 
-  	file &file = ff;
+  file &file = ff;
 
-lex::lexer lex{d, file};
-lex::token f;
-
-
-
-tree::default_ =  [] {
-  tree::count_data cd;
-  cd.count = 1;
-  cd.index = tree::tree_type<tree::empty_node_t>::type_index;
-  new(cd.data) tree::empty_node{};
-  return cd;
-}();
+  lex::lexer lex{d, file};
+  lex::token f;
 
 
-	pp::preprocessor pp{d, file};
 
-	parse::parser parser{d, pp};
+  tree::default_ =  [] {
+    tree::count_data cd;
+    cd.count = 1;
+    cd.index = tree::tree_type<tree::empty_node_t>::type_index;
+    new(cd.data) tree::empty_node{};
+    return cd;
+  }();
 
-	for(size_t nlabel = 1; ;) {
+
+  pp::preprocessor pp{d, file};
+
+  parse::parser parser{d, pp};
+
+  for(size_t nlabel = 1; ;) {
     while(parser.peek_token() == ";"_s)
-			parser.consume();
+      parser.consume();
     if(parser.peek_token()) {
-		  auto tree = parser.declaration();
+      auto tree = parser.declaration();
       tree(overload {
         [](auto &) {},
         [&](tree::function_t &fun) {
@@ -139,50 +139,25 @@ tree::default_ =  [] {
           c9::tree_opt::cse(cfg);
           cfg.unssa();
           cfg.convert_to_two_address_code();
-
-          /*tree::ssa_variable tab[cfg.nssa + 1];
-          cfg.collect_phi_operands(tab);
-*/
-
-
           cfg::cfg_walker walk{cfg.entry};
-
-          size_t tmps[cfg.ntmp], vars[cfg.nssa + 2];
-
-          std::fill_n(tmps, cfg.ntmp, 0);
-          std::fill_n(vars, cfg.nssa + 1, 0);
-
           regalloc::register_allocator alloc{cfg, x86::intreg{}, x86::op{}, x86::int_call_conv_sysv, x86::int_ret_reg};
           alloc.tab[size_t(x86::intreg::rsp)].second = false;
           alloc.tab[size_t(x86::intreg::rbp)].second = false;
           alloc.tab[size_t(x86::intreg::rip)].second = false;
           alloc();
-#if 1
+        #if 1
           x86::codegen codegen{};
-
           codegen.gen(cfg.entry);
           codegen.dump(stderr);
-#else
+        #else
           for(cfg::basic_block *bb = &cfg.entry; bb; bb = bb->step()) {
             bb->dump(stderr);
-           }
-#endif
-           fprintln(stderr, "\n\n");
+          }
+          #endif
+          fprintln(stderr, "\n\n");
         }
-
-      });// tree::dumper{stderr}.dump(tree);
-
-
+      });
     } else break;
-		//tree::dumper{stderr}.dump(tree);
 
-	}
-
-
-
-
-
-//s.simplify()
-	return 0;
-
+  }
 }
