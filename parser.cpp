@@ -445,7 +445,7 @@ bool parser::struct_or_union_specifier(tree::type_decl &td) {
 }
 
 bool parser::typedef_spec(tree::type_name &type) {
-  if(is<sema::id>(peek_token())) {
+  if(is<sema::id>(peek_token()) && !type->type) {
     sema::id &id = peek_token();
     if(!id.node || !id.node->decl) id = name_lookup(id.name);
     if(id.node && id.node->decl.is<tree::typedef_decl_t>()) {
@@ -587,7 +587,7 @@ void parser::function_parameters(tree::function_type_t &fun) {
   *this <= ")"_req;
 }
 tree::type_name parser::direct_declarator(sema::id &id, tree::type_name base, std::vector<tree::attribute> &attrs) {
-  if(is<sema::id>(peek_token()) && id.name.empty()) {
+  if(is<sema::id>(peek_token())) {
     if(id.name.size()) {
       error(peek_token().loc, {}, "dublicate name appears in declaration");
       return {};
