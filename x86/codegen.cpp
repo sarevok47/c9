@@ -122,7 +122,7 @@ void codegen::gen(tree::statement stmt) {
     },
     [&](spill_statement_t &spill) {
       auto reg = gen(tree::op(spill.reg));
-      if(auto var = (tree::variable) spill.op; var && var->is_global)
+      if(auto var = (tree::variable) spill.op; var && (var->is_global || var->scs == "static"_s))
         *this << mov{get_type(spill.op->type), {reg, memop{intreg::rip, var->name} }};
       else {
         auto &pos = local_vars[spill.op];
@@ -132,7 +132,7 @@ void codegen::gen(tree::statement stmt) {
     },
     [&](reload_t &reload) {
       auto reg = gen(tree::op(reload.reg));
-      if(auto var = (tree::variable) reload.op; var && var->is_global)
+      if(auto var = (tree::variable) reload.op; var && (var->is_global || var->scs == "static"_s))
         *this << mov{get_type(reload.op->type), {memop{intreg::rip, var->name}, reg }};
       else {
         auto &pos = local_vars[reload.op];
