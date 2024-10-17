@@ -119,7 +119,12 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
       }
     },
     [&](tree::decl_expression_t &expr) -> tree::expression {
-      if(auto var = (tree::variable) expr.declref) return construct_var(var);
+      if(auto var = (tree::variable) expr.declref) {
+        if(expr.type.get_data() != expr.undecay.get_data())
+          return ({ tree::addressof_t a{.expr = construct_var(var)}; a.type = expr.type; a; });
+
+        return construct_var(var);
+      }
       if(auto fun = (tree::function) expr.declref)
         return fun;
       c9_assert(0);

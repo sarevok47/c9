@@ -153,7 +153,7 @@ int main(int argc, char **argv) {
           for(cfg::basic_block *bb = &cfg.entry; bb; bb = bb->step()) {
             bb->dump(stderr);
           }
-          #endif
+        #endif
           fprintln(stderr, "\n\n");
         }
       });

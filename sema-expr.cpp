@@ -28,7 +28,7 @@ tree::function_call semantics::build_function_call(source_range loc, tree::expre
     [&](tree::pointer_t &ptr) ->  tree::function_call {
       auto type = strip_type(ptr.type);
       if(!type.is<tree::function_type_t>()) {
-        d.diag(loc, "error"_s, "calee cannot be a pointer to non function type");
+        d.diag(loc, "error"_s, "{} is not a pointer unction type", tree::type_exp_format{ptr.type});
         return {};
       }
 
@@ -76,24 +76,18 @@ tree::expression semantics::build_decl_expression(location_t ref_loc, tree::decl
   tree::expression r;
   decl(overload {
     [&](tree::function_t &f) {
-      r = tree::decl_expression{{{{.type = f.type, .loc = ref_loc}}, decl}};
+      r = tree::decl_expression{{{{.type = tree::function_type(f.type)->ptr_type, .loc = ref_loc}}, decl, f.type}};
     },
     [&](tree::variable_t &v) {
-      r = tree::decl_expression{{{{.type = v.type, .loc = ref_loc}}, decl}};
+      tree::type_decl type = v.type;
+      if(auto arr = (tree::array) type) type = arr->ptr_type;
+      r = tree::decl_expression{{{{.type = type, .loc = ref_loc}}, decl, v.type}};
     },
     [&](tree::enum_cst_t &e) {
       r = tree::decl_expression{{{{.type = e.type, .loc = ref_loc}}, decl}};
     },
     [&](auto &) {
       d.diag(ref_loc, "error"_s, "typedef can't appear in expression");
-    }
-  });
-  r->type([&](auto &tree) {
-    if constexpr(requires { tree.ptr_type; }) {
-      tree::cast_expression_t cast{ .cast_from = r,  .cast_to = tree.ptr_type };
-      cast.type = tree.ptr_type;
-      cast.loc = ref_loc;
-      r = cast;
     }
   });
 
@@ -227,14 +221,14 @@ tree::expression semantics::build_unary_expression(source_range loc, lex::token 
         d.diag(loc, "error"_s, "addressof expression requires lvalue");
         return;
       }
+      if(auto deref = (tree::dereference) expr) {
+        r = deref->expr;
+        return;
+      }
       tree::addressof_t addr{.expr = expr};
       travel_lvalue(expr, [&](tree::variable var) { var->alias = true; });
       addr.loc = loc;
-      if(auto type = (tree::pointer) expr->type) {
-        if((tree::function_type) type->type) addr.type = type->type;
-        if(auto arr = (tree::array) type->type) addr.type = arr->type;
-      }
-      addr.type = d.t.make_ptr(expr->type);
+      addr.type = tree::decl_expression(expr) ? tree::decl_expression(expr)->undecay : d.t.make_ptr(expr->type);
       r = addr;
     },
     [&](decltype("*"_s)) {

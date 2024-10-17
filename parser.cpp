@@ -608,7 +608,7 @@ tree::type_name parser::direct_declarator(sema::id &id, tree::type_name base, st
       attribute_list(attrs);
       fun.return_type = direct_declarator(id, fun.return_type, attrs);
       tree::function_type ptr = mov(fun);
-      ptr->ptr_type = d.t.make_ptr(base);
+      ptr->ptr_type = d.t.make_ptr(ptr);
       return tree::type_name{{ptr}};
     } else {
       tree::type_name stub = tree::type_name_t{ };

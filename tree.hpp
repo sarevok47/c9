@@ -259,6 +259,7 @@ TREE_DEF(pointer_access_member, : lvalue_t { expression expr; variable member; }
 
 TREE_DEF(decl_expression, : lvalue_t {
   decl declref;
+  type_decl undecay;
 });
 
 TREE_DEF(record_decl, : base_t {
