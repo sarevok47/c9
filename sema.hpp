@@ -102,7 +102,7 @@ struct semantics {
 
   tree::subscript_expression build_subscript_expression(source_range loc, tree::expression of, tree::expression with);
   tree::function_call build_function_call(source_range loc, tree::expression calee, std::vector<tree::expression> & args);
-  tree::decl_expression build_decl_expression(location_t ref_loc, tree::decl decl);
+  tree::expression build_decl_expression(location_t ref_loc, tree::decl decl);
 
   tree::expression maybe_build_cast_expression(source_range loc, tree::type_decl to, tree::expression from);
 

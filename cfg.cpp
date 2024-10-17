@@ -65,7 +65,7 @@ struct cfg_stream {
 
 cfg_stream control_flow_graph::cfg() { return cfg_stream{*this}; }
 tree::op control_flow_graph::construct_var(tree::variable var) {
-  if(var->is_global || var->alias || var->scs == "static"_s) {
+  if(var->is_global || var->alias || var->scs == "static"_s || !(tree::scalar_type) var->type) {
     vars.insert(var);
     last_bb->use.insert(var);
     return var;

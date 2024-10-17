@@ -105,6 +105,7 @@ static data_type get_type(tree::type_decl type) {
     [](double_type_t &)             -> data_type { return "q"_s; },
     [](long_double_type_t &)        -> data_type { return "q"_s; },
     [](pointer_t &)                 -> data_type { return "q"_s; },
+    [](array_t   &)                 -> data_type { return "q"_s; },
   });
 }
 static size_t size(data_type dt) {

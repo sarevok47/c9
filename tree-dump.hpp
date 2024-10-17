@@ -39,6 +39,14 @@ struct type_exp_format {
     }
     std::format_to(ctx.out(), ")");
   }
+  void operator()(std::format_context& ctx, tree::array_t &arr, size_t ptrs = 0) {
+    (*this)(ctx, arr.type);
+    if(ptrs) std::format_to(ctx.out(), "({:*>{}}) ", "", ptrs);
+    std::format_to(ctx.out(), "[");
+    // TODO int formatter
+   // (*this)(ctx, arr.numof);
+    std::format_to(ctx.out(), "]");
+  }
   void operator()(std::format_context& ctx, tree::pointer_t &ptr) {
     auto exp = ptr.type; size_t ptrs = 1;
     while(auto p = (tree::pointer) exp) ++ptrs, exp = p->type;

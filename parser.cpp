@@ -46,7 +46,6 @@ tree::expression parser::primary_expression() {
         id = name_lookup(id.name);
       if(id.node && id.node->decl)
         return build_decl_expression(loc, id.node->decl);
-
       error(loc, {}, "use undeclared '{}'", id.name);
       return {};
     },
@@ -625,7 +624,9 @@ tree::type_name parser::direct_declarator(sema::id &id, tree::type_name base, st
     if(peek_token() != "]"_s)
       numof = assignment_expression();
     *this <= "]"_req;
-    return tree::type_name{{tree::array{{.type = base, .numof = numof}}}};
+    tree::array arr{{.type = base, .numof = numof}};
+    arr->ptr_type = d.t.make_ptr(base);
+    return tree::type_name{{arr}};
   }
   return base;
 }

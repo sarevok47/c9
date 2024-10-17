@@ -72,11 +72,11 @@ tree::cast_expression semantics::build_cast_expression(source_range sr, tree::ex
   }
   return {};
 }
-tree::decl_expression semantics::build_decl_expression(location_t ref_loc, tree::decl decl) {
-  tree::decl_expression r;
+tree::expression semantics::build_decl_expression(location_t ref_loc, tree::decl decl) {
+  tree::expression r;
   decl(overload {
     [&](tree::function_t &f) {
-      r = tree::decl_expression{{{{.type = tree::function_type(f.type)->ptr_type, .loc = ref_loc}}, decl}};
+      r = tree::decl_expression{{{{.type = f.type, .loc = ref_loc}}, decl}};
     },
     [&](tree::variable_t &v) {
       r = tree::decl_expression{{{{.type = v.type, .loc = ref_loc}}, decl}};
@@ -88,6 +88,15 @@ tree::decl_expression semantics::build_decl_expression(location_t ref_loc, tree:
       d.diag(ref_loc, "error"_s, "typedef can't appear in expression");
     }
   });
+  r->type([&](auto &tree) {
+    if constexpr(requires { tree.ptr_type; }) {
+      tree::cast_expression_t cast{ .cast_from = r,  .cast_to = tree.ptr_type };
+      cast.type = tree.ptr_type;
+      cast.loc = ref_loc;
+      r = cast;
+    }
+  });
+
   return r;
 }
 
@@ -221,6 +230,10 @@ tree::expression semantics::build_unary_expression(source_range loc, lex::token 
       tree::addressof_t addr{.expr = expr};
       travel_lvalue(expr, [&](tree::variable var) { var->alias = true; });
       addr.loc = loc;
+      if(auto type = (tree::pointer) expr->type) {
+        if((tree::function_type) type->type) addr.type = type->type;
+        if(auto arr = (tree::array) type->type) addr.type = arr->type;
+      }
       addr.type = d.t.make_ptr(expr->type);
       r = addr;
     },
