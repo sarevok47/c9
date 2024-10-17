@@ -1,7 +1,7 @@
 #pragma once
 
 #include "token.hpp"
-
+#include "tree.hpp"
 
 namespace c9 { namespace lex {
 
@@ -32,8 +32,18 @@ struct character {
 
   variant_t<""_s, "U"_s, "u"_s, "u8"_s, "L"_s, "L"_s> prefix;
 };
+struct string {
+  std::string value;
 
-uint64_t read_escaped_char(auto &&p, sv &err) {
+  variant_t<""_s, "U"_s, "u"_s, "u8"_s, "L"_s> prefix;
+};
+enum class interpret_status {
+  out_of_range = 1,
+  exponent_missing,
+  invalid_suffix,
+  invalid_hex,
+};
+uint64_t read_escaped_char(auto &&p, interpret_status &is) {
   if ('0' <= *p && *p <= '7') {
     // Read an octal number.
     uint64_t c = *p++ - '0';
@@ -49,7 +59,7 @@ uint64_t read_escaped_char(auto &&p, sv &err) {
     // Read a hexadecimal number.
     p++;
     if (!isxdigit(*p))
-      err = "invalid hex escape sequence";
+      is = interpret_status::invalid_hex;
 
 
     uint64_t c = 0;
@@ -71,6 +81,36 @@ uint64_t read_escaped_char(auto &&p, sv &err) {
     default: return p[-1];
   }
 }
+
+static tree::integer_type get_prefix_type(auto prefix) {
+  return visit(prefix, overload {
+    [&](decltype(""_s))  { return tree::unsigned_char_type_node; },
+    [&](decltype("U"_s)) { return tree::unsigned_char_type_node; },
+    [&](decltype("u"_s)) { return tree::unsigned_char_type_node; },
+    [&](decltype("u8"_s)){ return tree::unsigned_char_type_node; },
+    [&](decltype("L"_s)) { return tree::unsigned_char_type_node; },
+  });
+}
+static string interpret_string(string_literal sl, interpret_status &is) {
+  string r;
+  auto src = sl.begin();
+  lex::scan_impl(src, r.prefix, variant_types(r.prefix), 0_c, ""_s);
+  ++src;
+
+  size_t type_size = get_prefix_type(r.prefix)->size;
+  r.value.resize((sl.size() + 1) * type_size);
+  auto dst = r.value.begin().base();
+
+  for(; src != sl.end() - 1; dst += type_size) {
+    if(*src == '\\') {
+      ++src;
+      auto c = read_escaped_char(src, is);
+      memcpy(dst, &c, type_size);
+    } else
+      *dst = *src++;
+  }
+  return r;
+}
 /*
  * The numeric value of character constants in preprocessor expressions.
  * The preprocessor and compiler interpret character constants in the same way; i.e. escape sequences such as `\a' are given the values they would have on the target machine.
@@ -87,14 +127,6 @@ static character interpret_char(char_literal cl) {
   c.value = *cur;
   return c;
 }
-
-enum class interpret_status {
-  out_of_range = 1,
-  exponent_missing,
-  invalid_suffix,
-};
-
-
 static integer interpret_integer(numeric_constant nc, interpret_status &ok) {
   ok = {};
   const char *p = nc.begin();

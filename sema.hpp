@@ -7,6 +7,7 @@
 #include "tree-trait.hpp"
 #include "flat-map.hpp"
 #include "target.hpp"
+#include "lex-conv.hpp"
 #include <stack>
 
 namespace c9 { namespace sema {
@@ -179,7 +180,7 @@ struct semantics {
     return expr;
   }
 
-  tree::string_cst_expression build_string(source_range loc, lex::string_literal sl);
+  tree::string_cst_expression build_string(source_range loc, lex::string str);
   template<class ...T> void redecl_error(rich_location rl, string name, tree::decl &decl, std::format_string<T...> fmt, T&& ...args) {
     d.diag(rl, "error"_s, "redeclaration of {} '{}' {}",
            decl(overload {

@@ -49,7 +49,30 @@ tree::expression parser::primary_expression() {
       error(loc, {}, "use undeclared '{}'", id.name);
       return {};
     },
-    [&](lex::string_literal sl)  -> tree::expression{ return consume(), build_string(loc, sl); },
+    [&](lex::string_literal sl)  -> tree::expression {
+      consume();
+      lex::interpret_status stat{};
+      auto str = lex::interpret_string(sl, stat);
+
+      if(stat == lex::interpret_status::invalid_hex)
+        error(loc, {}, "invalid hex sequence");
+
+      while(is<lex::string_literal>(peek_token())) {
+         lex::interpret_status stat{};
+         auto rhs = lex::interpret_string(peek_token(), stat);
+         if(stat == lex::interpret_status::invalid_hex)
+           error(loc, {}, "invalid hex sequence");
+        // Handle "1" L"second" cases
+         if(str.prefix == ""_s || rhs.prefix == ""_s || str.prefix == rhs.prefix) {
+           str.value += str.value;
+           str.prefix = str.prefix == ""_s ? rhs.prefix : str.prefix;
+         } else
+          error(peek_token().loc, {loc}, "cannot combine string literals with different preficies");
+        consume();
+      }
+
+      return build_string(loc, str);
+    },
     [&](lex::numeric_constant nc) {
       consume();
       lex::interpret_status stat{};
