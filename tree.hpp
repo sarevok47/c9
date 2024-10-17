@@ -433,6 +433,7 @@ TREE_DEF(identifier_token, : base_t { location_t loc; string str; });
 
 // IR
 TREE_DEF(mov, : statement_t { expression src; op dst; });
+TREE_DEF(load_addr, : statement_t { op src, dst;});
 TREE_DEF(temporary, : op_t { size_t idx; });
 TREE_DEF(ssa_variable, : op_t { tree::variable var; size_t ssa_n, ssa_tab_n; });
 TREE_DEF(cst, : op_t {  variant<__uint128_t, long double> data; });

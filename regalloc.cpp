@@ -93,7 +93,9 @@ void register_allocator::reload(live_interval li, size_t insn_pos, std::list<tre
     if(auto mov = comp_exp_cast<tree::mov>(*insn)) {
       dst = mov->dst == li.op;
       cfg::visit_ops(mov->src, [&](auto &op) { src |= tree::op(op) == li.op; });
-    } else
+    } else if(auto load_addr = comp_exp_cast<tree::load_addr>(*insn))
+      src = load_addr->src == li.op;
+    else
       cfg::visit_ops(*insn, [&](auto &op) { src |= tree::op(op) == li.op; });
 
     cfg::visit_ops(*insn, [&](auto &op) { if(tree::op(op) == li.op) op = reg; });

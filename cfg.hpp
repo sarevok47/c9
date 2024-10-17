@@ -187,7 +187,7 @@ void visit_ops(auto &insn, auto &&f) {
     [&](tree::return_statement_t &ret) {
       visit_ops(ret.expr, f);
     },
-    [&](tree::mov_t &mov) {
+    [&](auto &mov) requires requires { mov.src; mov.dst; } {
       visit_ops(mov.src, f);
       visit_ops(mov.dst, f);
     },

@@ -140,6 +140,9 @@ void codegen::gen(tree::statement stmt) {
         *this << mov{get_type(reload.op->type), {memop{intreg::rsp, (int) pos}, reg }};
       }
     },
+    [&](load_addr_t &load) {
+      *this << mov(get_type(load.src->type), { gen(load.src), memop{gen(load.dst)} });
+    },
     [&](br_t br) {
       *this << test{get_type(br.cond->type), {gen(br.cond), gen(br.cond)}};
       *this << jcc{{br.false_}};
