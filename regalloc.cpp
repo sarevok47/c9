@@ -56,6 +56,15 @@ template<class T> T comp_exp_cast(tree::base tree) {
     for(auto tree : *c) return comp_exp_cast<T>(tree);
   return {};
 }
+template<class ...T> void process_trees(tree::base tree, auto &&f) {
+  if(auto c = (tree::compound_statement) tree)
+    for(auto tree : *c) process_trees<T...>(tree, f);
+  else {
+    bool match{};
+    (([&] { if(auto t = (T) tree) match = true, f(t); }()), ...);
+    if(!match) f(tree);
+  }
+}
 
 void register_allocator::get_spill_reg_for_call(std::pair<tree::target_op, bool> *reg, size_t insn_pos, std::list<tree::statement>::iterator insn, tree::op dst) {
   while(active.size()) {
@@ -90,15 +99,18 @@ void register_allocator::reload(live_interval li, size_t insn_pos, std::list<tre
 
   auto reload = [&](auto reg) {
     bool src{}, dst{};
-    if(auto mov = comp_exp_cast<tree::mov>(*insn)) {
-      dst = mov->dst == li.op;
-      cfg::visit_ops(mov->src, [&](auto &op) { src |= tree::op(op) == li.op; });
-    } else if(auto load_addr = comp_exp_cast<tree::load_addr>(*insn))
-      src = load_addr->src == li.op;
-    else
-      cfg::visit_ops(*insn, [&](auto &op) { src |= tree::op(op) == li.op; });
 
-    cfg::visit_ops(*insn, [&](auto &op) { if(tree::op(op) == li.op) op = reg; });
+    auto process_ops = [&](auto &i) { cfg::visit_ops(i, [&](auto &op) { if(tree::op(op) == li.op) src = true, op = reg; }); };
+    process_trees<tree::mov, tree::load_addr>(*insn, overload {
+      [&](tree::mov mov) {
+        if(mov->dst == li.op) dst = true, mov->dst = reg;
+        process_ops(mov->src);
+      },
+      [&](tree::load_addr load_addr) { process_ops(load_addr->src); },
+      [&](auto) { process_ops(*insn); }
+    });
+
+
     tree::compound_statement_t compound;
     if(src) compound.emplace_back(tree::reload{{.reg = reg, .op = li.op}});
     compound.emplace_back(*insn);
