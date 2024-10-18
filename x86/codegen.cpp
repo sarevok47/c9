@@ -8,7 +8,7 @@ auto visitor(auto &&f) { return [&](auto &&value) { return f(value); }; }
 namespace c9 { namespace x86 {
 using namespace tree;
 
-void codegen::gen(cfg::basic_block &entry) {
+void function_codegen::gen(cfg::basic_block &entry) {
   *this << sub{"q"_s, {0, intreg::rsp}};
   for(auto bb = &entry; bb; bb = bb->step()) {
     size_t insn_idx = insns.size();
@@ -20,7 +20,7 @@ void codegen::gen(cfg::basic_block &entry) {
   for(auto add : ret_insert_add_sp_pos) *add = (int) sp;
 }
 
-void codegen::dump(FILE *out) {
+void function_codegen::dump(FILE *out) {
   auto l = label_list.begin();
   for(size_t i = 0; i != insns.size(); ++i) {
     if(i == l->first)
@@ -40,7 +40,7 @@ insn make_binary_insn(lex::binary_tok binary_op, data_type type, op lhs, op rhs)
   });
 }
 
-op codegen::gen(tree::op operand) {
+op function_codegen::gen(tree::op operand) {
   return operand(overload {
     [&](tree::target_op_t op) {
       return (x86::op) op.data;
@@ -59,7 +59,7 @@ op codegen::gen(tree::op operand) {
     [](auto &) -> op { c9_assert(0); }
   });
 }
-void codegen::gen(tree::expression expr, op dst) {
+void function_codegen::gen(tree::expression expr, op dst) {
   expr(overload {
     [](auto &) {},
     [&](narrow<tree::op_t> auto &op) {
@@ -110,7 +110,7 @@ void codegen::gen(tree::expression expr, op dst) {
     }
   });
 }
-void codegen::gen(tree::statement stmt) {
+void function_codegen::gen(tree::statement stmt) {
   stmt(overload {
     [](auto &) {},
     [&](mov_t mov) {

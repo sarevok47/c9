@@ -5,6 +5,8 @@
 #include "cfg.hpp"
 #include "variant.hpp"
 #include "regalloc.hpp"
+#include "tree-opt.hpp"
+#include "regalloc.hpp"
 
 namespace c9 {
 namespace x86 {
@@ -117,7 +119,7 @@ static size_t size(data_type dt) {
     [](decltype("q"_s)) { return 8; },
   });
 }
-struct codegen {
+struct function_codegen {
   std::vector<insn> insns;
   int sp{};
 
@@ -130,12 +132,65 @@ struct codegen {
   void gen(tree::expression, op dst);
   void gen(tree::statement);
 
-  codegen &operator<<(auto value) { insns.emplace_back(value); return *this; }
+  function_codegen &operator<<(auto value) { insns.emplace_back(value); return *this; }
 
   void dump(FILE *out);
 };
 static intreg int_call_conv_sysv[] = { intreg::rdi, intreg::rsi, intreg::rdx, intreg::rcx, intreg::r8,intreg::r9 };
 constexpr static intreg int_ret_reg = intreg::rax;
+class codegen {
+  size_t nlabel = 1;
+  std::set<tree::variable> section_data;
+  std::vector<std::pair<opt<function_codegen>, tree::function>> section_text;
+public:
+  driver &d;
+  void gen_var(tree::variable_t &var) {
+
+  }
+  void operator()(tree::decl decl) {
+    decl(overload {
+      [](auto &) {},
+      [&](tree::variable_t &) {
+
+      },
+      [&](tree::function_t &fun) {
+        cfg::control_flow_graph cfg{d, nlabel};
+        cfg.construct(fun.definition);
+        for(auto var : cfg.vars.map<tree::variable_t>()) section_data.emplace(var);
+        c9::tree_opt::constprop(cfg);
+        c9::tree_opt::cse(cfg);
+        cfg.unssa();
+        cfg.convert_to_two_address_code();
+        cfg::cfg_walker walk{cfg.entry};
+        regalloc::register_allocator alloc{cfg, x86::intreg{}, x86::op{}, x86::int_call_conv_sysv, x86::int_ret_reg};
+        alloc.tab[size_t(x86::intreg::rsp)].second = false;
+        alloc.tab[size_t(x86::intreg::rbp)].second = false;
+        alloc.tab[size_t(x86::intreg::rip)].second = false;
+        alloc();
+        function_codegen codegen{};
+        codegen.gen(cfg.entry);
+        section_text.emplace_back(fun.definition ? c9::mov(codegen) : opt<function_codegen>{}, tree::function(decl));
+      }
+    });
+  }
+
+  void print(FILE *out) {
+    fprintln(out, ".section .data");
+    for(auto var : section_data) if(var->is_global) fprintln(out, ".global {}", var->name);
+    for(auto var : section_data) fprintln(out, "{}:\n\t.zero {}",  var->name, var->type->size);
+
+    fprintln(out, ".section .text");
+    for(auto &[_, fun] : section_text)
+      if(fun->scs != "static"_s) fprintln(out, ".global {}", fun->name);
+    for(auto &[codegen, fun] : section_text)
+      if(codegen) {
+        fprintln(out, "{}:", fun->name);
+        for(auto insn : codegen->insns) dump_insn(out, insn);
+      }
+  }
+
+  codegen(driver &d) : d{d} {}
+};
 }
 
 

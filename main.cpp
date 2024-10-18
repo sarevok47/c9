@@ -125,16 +125,19 @@ int main(int argc, char **argv) {
 
   parse::parser parser{d, pp};
 
-  for(size_t nlabel = 1; ;) {
+  x86::codegen codegen{d};
+  for(;;) {
     while(parser.peek_token() == ";"_s)
       parser.consume();
     if(parser.peek_token()) {
       auto tree = parser.declaration();
+#if 0
       tree(overload {
         [](auto &) {},
         [&](tree::function_t &fun) {
           cfg::control_flow_graph cfg{d, nlabel};
           cfg.construct(fun.definition);
+          for(auto var : cfg.vars.map<tree::variable_t>()) section_data.emplace(var);
           c9::tree_opt::constprop(cfg);
           c9::tree_opt::cse(cfg);
           cfg.unssa();
@@ -157,7 +160,12 @@ int main(int argc, char **argv) {
           fprintln(stderr, "\n\n");
         }
       });
-    } else break;
+#endif
 
-  }
+     codegen(tree);
+    }  else break;
+}
+    codegen.print(stderr);
+
+
 }
