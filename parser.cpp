@@ -364,7 +364,8 @@ bool parser::enum_specifier(tree::type_decl &td) {
   auto &node = get_or_def_node(name);
   if(!node.enum_decl) {
     node.enum_decl = tree::enum_decl{{.name = name.name, .type = tree::int_type_node}};
-    node.enum_decl->size = tree::int_type_node->size;
+    node.enum_decl->size  = tree::int_type_node->size;
+    node.enum_decl->align = tree::int_type_node->align;
   }
   td = node.enum_decl;
   if(*this <= "{"_s) {
@@ -419,7 +420,6 @@ bool parser::struct_or_union_specifier(tree::type_decl &td) {
       td = node.union_decl;
     }
     if(*this <= "{"_s) {
-      size_t size{};
       tree::record_decl_t s{};
       while(peek_token() && peek_token() != "}"_s) {
         decl_specifier_seq dss;
@@ -437,11 +437,7 @@ bool parser::struct_or_union_specifier(tree::type_decl &td) {
             [&](tree::function_type_t &) {
               error(peek_token().loc, {}, "cannot declarate function within structure");
             },
-            [&](auto &) {
-              if(is_struct ) size += strip_type(type)->size;
-              else size = std::max(size, strip_type(type)->size);
-              s.fields.push_back({{id.name, type, mov(attrs)}});
-            }
+            [&](auto &) { s.fields.push_back({{id.name, type, mov(attrs)}}); }
           });
 
           if(id.name.empty()) break;
@@ -450,15 +446,16 @@ bool parser::struct_or_union_specifier(tree::type_decl &td) {
           if(!require(";"_s))
             break;
       }
-      if(!size) size = 1;
+      size_t size, align;
+      process_record_decl(s, is_struct, size, align);
       *this <= "}"_req;
       if(name.name.size()
         && ((is_struct && node.struct_decl->definition) || (!is_struct && node.union_decl->definition))
       )
         error(start_loc, {}, "redeclaration of {} '{}'", is_struct ? "struct" : "union", name.name);
         else {
-          if(is_struct) { node.struct_decl->definition = s; node.struct_decl->size = size; }
-          else          { node.union_decl->definition = s;  node.union_decl->size  = size; }
+          if(is_struct) { node.struct_decl->definition = s; node.struct_decl->size = size; node.struct_decl->align = align;  }
+          else          { node.union_decl->definition = s;  node.union_decl->size  = size; node.union_decl->align  = align;}
         }
     }
 
@@ -562,8 +559,11 @@ bool parser::declspec(decl_specifier_seq &dss, bool scs_ok) {
       return r;
     }())
     r = true;
-  if(dss.type->type) dss.type->size = dss.type->type->size;
   process_type_spec(tss, dss.type->type);
+  if(dss.type->type) {
+    dss.type->size = dss.type->type->size;
+    dss.type->align = dss.type->type->align;
+  }
   return r;
 }
 

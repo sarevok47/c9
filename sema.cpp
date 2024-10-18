@@ -1,5 +1,6 @@
 #pragma once
 #include "sema.hpp"
+#include <cmath>
 namespace c9 { namespace sema {
 
 bool label_manager::process_label(tree::label label) {
@@ -124,6 +125,21 @@ tree::decl semantics::build_decl(rich_location rl, id id, tree::type_name type, 
   else
     decl = tree::variable{{id.name,  type->type, id.is_global_scope(), scs_assign(decltype(tree::variable_t::scs){}, scs) }};
   return decl;
+}
+
+void semantics::process_record_decl(tree::record_decl_t &rd, bool is_struct, size_t &size, size_t &align){
+  size_t max{};
+  for(auto field : rd.fields) max = std::max(field->type->align, max);
+  align = max;
+  if(size_t offset_i = 0; is_struct) {
+    for(auto field : rd.fields | iter_range) {
+      field->offset = offset_i;
+      offset_i += (*field)->type->size;
+      if(field + 1 != rd.fields.end() && field[1]->type->align > (*field)->type->align)
+        offset_i += field[1]->type->align - (*field)->type->align;
+    }
+    size = offset_i ? (offset_i + align - 1) & ~(align - 1) : 1;
+  } else size = max;
 }
 
 } }

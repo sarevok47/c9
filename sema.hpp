@@ -193,6 +193,8 @@ struct semantics {
            name, std::format(fmt, (decltype(args)) args...));
   }
 
+  void process_record_decl(tree::record_decl_t &rd, bool is_struct, size_t &size, size_t &align);
+
   tree::cast_expression build_cast_expression(source_range sr, tree::expression expr, tree::type_decl type);
   tree::decl build_typedef_decl(rich_location rl, id id, tree::decl &node, tree::type_name type);
   tree::decl build_local_extern_decl(rich_location rl, id id, tree::decl &node, tree::type_name type);

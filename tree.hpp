@@ -173,7 +173,7 @@ TREE_DEF(block_decl, : std::vector<decl>, decl_t {  });
 
 
 
-TREE_NARROW_DEF(type_decl, : decl_t { size_t size; });
+TREE_NARROW_DEF(type_decl, : decl_t { size_t size, align; });
 
 
 
@@ -261,7 +261,8 @@ TREE_DEF(decl_expression, : lvalue_t {
 });
 
 TREE_DEF(record_decl, : base_t {
-  std::vector<variable> fields;
+  struct record_member : variable { using variable::variable; size_t offset; };
+  std::vector<record_member> fields;
 
   variable find(string name);
 });
@@ -292,7 +293,7 @@ TREE_DEF(pointer, : scalar_type_t {
   type_decl type;
   constexpr bool is_pointer();
 
-  pointer_t(type_decl type, size_t size) : type{type} { this->size = size; }
+  pointer_t(type_decl type, size_t size) : type{type} { this->size = size; this->align = size; }
 });
 TREE_DEF(array, : type_decl_t { type_decl type; expression numof; pointer ptr_type; });
 TREE_DEF(function_type, : type_decl_t {
@@ -495,7 +496,7 @@ template<class T_t> template<narrow<T_t> U> tree_value<T_t>::operator tree_value
   ++r.data->count;
   return r;
 }
-inline type_name_t::type_name_t(type_decl type) : type{type} { this->size = type->size; }
+inline type_name_t::type_name_t(type_decl type) : type{type} { this->size = type->size; this->align = type->size; }
 
 inline variable record_decl_t::find(string name) {
   c9_assert(name.size());

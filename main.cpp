@@ -75,7 +75,7 @@ int main(int argc, char **argv) {
   {
     using namespace  tree;
     #define BUILTIN_TYPE_DEF(name, ...) \
-    { name##_t t; t.size = x86::size(x86::get_type(t)); \
+    { name##_t t; t.align = t.size = x86::size(x86::get_type(t)); \
       type_node<name##_t> = t; }
 
 
