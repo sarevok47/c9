@@ -28,7 +28,7 @@ struct floating {
 };
 
 struct character {
-  uint64_t value;
+  uint64_t value; bool multi_character{};
 
   variant_t<""_s, "U"_s, "u"_s, "u8"_s, "L"_s, "L"_s> prefix;
 };
@@ -118,13 +118,21 @@ static string interpret_string(string_literal sl, interpret_status &is) {
  * character truncated to the width of a target character. The final bit-pattern is given type int, and is therefore signed, regardless of whether single characters are signed or not (a slight change from
  * versions 3.1 and earlier of GCC). If there are more characters in the constant than would fit in the target int the compiler issues a warning, and the excess leading characters are ignored.
 */
-static character interpret_char(char_literal cl) {
-  character c;
+static character interpret_char(char_literal cl, interpret_status &is) {
+  character c{};
 
   auto cur = cl.begin();
   scan_impl(cur, c.prefix, variant_types(c.prefix), 0_c, ""_s);
+  ++cur;
 
-  c.value = *cur;
+  constexpr static uint64_t mask = (1 << CHAR_BIT) - 1; // Mask for the current character
+
+  c.value = *cur == '\\' ? read_escaped_char(++cur, is) + 48 : *cur++;
+  while(*cur != '\'') {
+    c.multi_character = true;
+    auto x = *cur == '\\' ? read_escaped_char(++cur, is) + 48 : *cur++;
+    c.value = (c.value << CHAR_BIT) | (x & mask);
+  }
   return c;
 }
 static integer interpret_integer(numeric_constant nc, interpret_status &ok) {

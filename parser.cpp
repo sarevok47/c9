@@ -101,13 +101,12 @@ tree::expression parser::primary_expression() {
     },
     [&](lex::char_literal cl) -> tree::expression {
       consume();
-      variant_t<""_s, "U"_s, "u"_s, "u8"_s, "L"_s, "L"_s> prefix;
+      lex::interpret_status stat{};
+      auto c = interpret_char(cl, stat);
+      if(stat == lex::interpret_status::invalid_hex)
+        error(loc, {}, "invalid hex sequence");
 
-      auto s = cl.begin();
-      lex::scan_impl(s, prefix, variant_types(prefix), 0_c, ""_s);
-      ++s;
-
-      return tree::int_cst_expression{{*s, tree::char_type_node, loc}};
+      return tree::int_cst_expression{{c.value,  c.multi_character ? tree::int_type_node : lex::get_prefix_type(c.prefix), loc}};
     },
     [&](decltype("("_s)) -> tree::expression {
       consume();
