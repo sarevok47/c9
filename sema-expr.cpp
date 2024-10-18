@@ -228,7 +228,7 @@ tree::expression semantics::build_unary_expression(source_range loc, lex::token 
       tree::addressof_t addr{.expr = expr};
       travel_lvalue(expr, [&](tree::variable var) { var->alias = true; });
       addr.loc = loc;
-      addr.type = tree::decl_expression(expr) ? tree::decl_expression(expr)->undecay : d.t.make_ptr(expr->type);
+      addr.type = d.t.make_ptr(tree::decl_expression(expr) ? tree::decl_expression(expr)->undecay : expr->type);
       r = addr;
     },
     [&](decltype("*"_s)) {
