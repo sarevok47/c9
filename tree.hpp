@@ -208,8 +208,6 @@ TREE_DEF(addressof, : rvalue_t { expression expr; });
 TREE_DEF(dereference, : lvalue_t { expression expr; });
 
 TREE_DEF(function_call, : rvalue_t { expression calee; std::vector<expression> args; });
-TREE_DEF(subscript_expression, : lvalue_t { expression of; expression with; });
-
 
 TREE_DEF(initializer_list, : rvalue_t {
   struct array_designator { expression index; };

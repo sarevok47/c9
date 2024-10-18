@@ -101,7 +101,7 @@ struct semantics {
     return (*scopes.stack.back())[id.name];
   }
 
-  tree::subscript_expression build_subscript_expression(source_range loc, tree::expression of, tree::expression with);
+  tree::expression build_subscript_expression(source_range loc, tree::expression of, tree::expression with);
   tree::function_call build_function_call(source_range loc, tree::expression calee, std::vector<tree::expression> & args);
   tree::expression build_decl_expression(location_t ref_loc, tree::decl decl);
 

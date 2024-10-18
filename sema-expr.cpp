@@ -3,7 +3,7 @@
 #include "lex-conv.hpp"
 #include "tree-dump.hpp"
 namespace c9 { namespace sema {
-tree::subscript_expression semantics::build_subscript_expression(source_range loc, tree::expression of, tree::expression with) {
+tree::expression semantics::build_subscript_expression(source_range loc, tree::expression of, tree::expression with) {
   using namespace tree;
   if(!strip_type(with->type)([]<class T>(T &) { return narrow<T, integer_type_t>; })) {
     d.diag(loc, "error"_s, "index in array subscript must be an integer");
@@ -11,13 +11,18 @@ tree::subscript_expression semantics::build_subscript_expression(source_range lo
   }
 
   return strip_type(of->type)(overload {
-    [&](pointer_t &ptr) -> subscript_expression {
-      subscript_expression_t r{.of = of, .with = with };
-      r.type = ptr.type;
-      r.loc = loc;
-      return r;
+    [&](pointer_t &ptr) -> expression {
+      dereference_t deref{.expr = ({
+        binary_expression_t binexpr{.op = "+"_s, .lhs = of, .rhs = with};
+        binexpr.type = ptr;
+        binexpr.loc = loc;
+        binexpr;
+      })};
+      deref.type = ptr.type;
+      deref.loc = loc;
+      return deref;
     },
-    [&](auto &) -> subscript_expression {
+    [&](auto &) -> expression {
       d.diag(loc, "error"_s, "invalid type to subscript");
       return {};
     }

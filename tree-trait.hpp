@@ -167,7 +167,6 @@ void travel_lvalue(expression expr, auto &&f) {
   expr(overload {
     [](auto &) { },
     [&](decl_expression_t declexpr) { if(auto var = (tree::variable) declexpr.declref) f(var); },
-    [&](subscript_expression_t subscript) {  travel_lvalue(subscript.of, f);  },
     [&](assign_expression_t assign) { travel_lvalue(assign.lhs, f); },
     [&](dereference_t deref) { travel_lvalue(deref.expr, f); },
     [&](addressof_t addr) { travel_lvalue(addr.expr, f); }

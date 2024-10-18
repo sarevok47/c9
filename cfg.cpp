@@ -90,11 +90,6 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
   return expr(overload {
     [](auto &) -> tree::expression { fprint(stderr, "{}", __PRETTY_FUNCTION__); },
     [&](tree::string_cst_expression_t &) { return expr; },
-    [&](tree::subscript_expression_t &expr) {
-      expr.of = construct(expr.of);
-      expr.with = construct(expr.with);
-      return expr;
-    },
     [&](tree::dereference_t &deref) {
       deref.expr = construct(deref.expr);
       return expr;
