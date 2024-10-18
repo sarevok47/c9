@@ -4,16 +4,14 @@
 
 namespace c9 { namespace tree {
 struct type_exp_format {
-  tree::type_decl type;
+  template<class T> static void operator()(std::format_context& ctx, tree::tree_value<T> type) { type([&](auto &t) { operator()(ctx, t); }); }
 
-  void operator()(std::format_context& ctx, tree::type_decl type) { type([&](auto &t) { (*this)(ctx, t); }); }
-
-  void operator()(std::format_context& ctx, auto &t) {
+  static void operator()(std::format_context& ctx, auto &t) {
     if constexpr(requires { t.name; }) std::format_to(ctx.out(), "{}", t.name);
     else c9_assert(0);
   }
-  void operator()(std::format_context& ctx, narrow<tree::builtin_type_t> auto &builtin) { if constexpr(requires { builtin.name; }) std::format_to(ctx.out(), "{}", builtin.name); }
-  void operator()(std::format_context& ctx, tree::type_name_t &type) {
+  static void operator()(std::format_context& ctx, narrow<tree::builtin_type_t> auto &builtin) { if constexpr(requires { builtin.name; }) std::format_to(ctx.out(), "{}", builtin.name); }
+  static void operator()(std::format_context& ctx, tree::type_name_t &type) {
     std::string str;
     if(type.is_const)
       str += "const ";
@@ -22,38 +20,38 @@ struct type_exp_format {
     if(type.is_restrict)
       str += "restrict ";
     std::format_to(ctx.out(), "{}", str);
-    (*this)(ctx, type.type);
+    operator()(ctx, type.type);
   }
-  void operator()(std::format_context& ctx, tree::typedef_decl_t &type) {
+  static void operator()(std::format_context& ctx, tree::typedef_decl_t &type) {
     std::format_to(ctx.out(), "{} (", type.name);
-    (*this)(ctx, type.type);
+    operator()(ctx, type.type);
     std::format_to(ctx.out(), ")", type.name);
   }
-  void operator()(std::format_context& ctx, tree::function_type_t &fn, size_t ptrs = 0) {
-    (*this)(ctx, fn.return_type);
+  static void operator()(std::format_context& ctx, tree::function_type_t &fn, size_t ptrs = 0) {
+    operator()(ctx, fn.return_type);
     std::format_to(ctx.out(), "({:*>{}}) ", "", ptrs);
     std::format_to(ctx.out(), "(");
     for(auto param : fn.params | iter_range) {
-      (*this)(ctx,  param->type);
+      operator()(ctx,  param->type);
       if(param + 1 != fn.params.end()) std::format_to(ctx.out(), ", ");
     }
     std::format_to(ctx.out(), ")");
   }
-  void operator()(std::format_context& ctx, tree::array_t &arr, size_t ptrs = 0) {
-    (*this)(ctx, arr.type);
+  static void operator()(std::format_context& ctx, tree::array_t &arr, size_t ptrs = 0) {
+    operator()(ctx, arr.type);
     if(ptrs) std::format_to(ctx.out(), "({:*>{}}) ", "", ptrs);
     std::format_to(ctx.out(), "[");
     // TODO int formatter
-   // (*this)(ctx, arr.numof);
+   // operator()(ctx, arr.numof);
     std::format_to(ctx.out(), "]");
   }
-  void operator()(std::format_context& ctx, tree::pointer_t &ptr) {
+  static void operator()(std::format_context& ctx, tree::pointer_t &ptr) {
     auto exp = ptr.type; size_t ptrs = 1;
     while(auto p = (tree::pointer) exp) ++ptrs, exp = p->type;
     if(auto fn = (tree::function_type) exp)
-      (*this)(ctx, *fn, ptrs);
+      operator()(ctx, *fn, ptrs);
     else {
-      (*this)(ctx, exp);
+      operator()(ctx, exp);
       std::format_to(ctx.out(), " {:*>{}}", "", ptrs);
     }
   }
@@ -96,12 +94,11 @@ struct dumper {
 };
 
 }}
-template<> struct std::formatter<c9::tree::type_exp_format> {
-  constexpr auto parse(auto &ctx) {
-    return ctx.begin();
-  }
-  auto format(c9::tree::type_exp_format &f, std::format_context& ctx) const {
-    f(ctx, f.type);
+
+template<c9::narrow<c9::tree::type_decl_t> T> struct std::formatter<c9::tree::tree_value<T>> {
+  constexpr auto parse(auto &ctx) { return ctx.begin(); }
+  auto format(c9::tree::tree_value<T> tree, std::format_context& ctx) const {
+    c9::tree::type_exp_format{}(ctx, tree);
     return ctx.out();
   }
 };

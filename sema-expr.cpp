@@ -6,7 +6,7 @@ namespace c9 { namespace sema {
 tree::expression semantics::build_subscript_expression(source_range loc, tree::expression of, tree::expression with) {
   using namespace tree;
   if(!strip_type(with->type)([]<class T>(T &) { return narrow<T, integer_type_t>; })) {
-    d.diag(loc, "error"_s, "index in array subscript must be an integer");
+    d.diag(loc, "error"_s, "index type '{}' in array subscript is not an integer", with->type);
     return {};
   }
 
@@ -23,7 +23,7 @@ tree::expression semantics::build_subscript_expression(source_range loc, tree::e
       return deref;
     },
     [&](auto &) -> expression {
-      d.diag(loc, "error"_s, "invalid type to subscript");
+      d.diag(loc, "error"_s, "invalid type '{}' to subscript", with->type);
       return {};
     }
   });
@@ -33,17 +33,25 @@ tree::function_call semantics::build_function_call(source_range loc, tree::expre
     [&](tree::pointer_t &ptr) ->  tree::function_call {
       auto type = strip_type(ptr.type);
       if(!type.is<tree::function_type_t>()) {
-        d.diag(loc, "error"_s, "{} is not a pointer unction type", tree::type_exp_format{ptr.type});
+        d.diag(loc, "error"_s, "'{}' is not a pointer to function type", ptr.type);
         return {};
       }
 
       auto &fun = (tree::function_type_t &) type;
+      string funname = ({
+        string name;
+        if(auto declexpr = tree::decl_expression(calee))
+          if(auto fun = tree::function(declexpr->declref)) name = fun->name;
+         name;
+      });
+
+      auto quote = funname.size() ? "\'" : "";
       if(args.size() < fun.params.size()) {
-        d.diag(loc, "error"_s, "too few arguments to call function");
+        d.diag(loc, "error"_s, "too few arguments to call function {}{}{} (passed {}, while function gets)", quote, funname, quote, fun.params.size(), args.size());
         return {};
       }
       if(args.size() > fun.params.size() && !fun.is_variadic) {
-        d.diag(loc, "error"_s, "too few arguments to call function");
+        d.diag(loc, "error"_s, "too many arguments to call function {}{}{} (passed {}, while function gets)", quote, funname, quote, fun.params.size(), args.size());
         return {};
       }
 
@@ -52,7 +60,8 @@ tree::function_call semantics::build_function_call(source_range loc, tree::expre
         if(!visit(strip_type(args[i]->type), paramtype, [&](auto &l, auto &r) {
           return is_compatible(lex::assign_tok{"="_s}, l, r);
         })) {
-          d.diag(args[i]->loc, "error"_s, "incompatible types of argument and parameter ('{}')", i);
+          d.diag(args[i]->loc, "error"_s, "incompatible types of argument and parameter ({} and {}) at position {}",
+                                fun.params[i].type, args[i]->type, i);
           return {};
         }
         args[i] = maybe_build_cast_expression(args[i]->loc, paramtype, args[i]);
@@ -63,7 +72,7 @@ tree::function_call semantics::build_function_call(source_range loc, tree::expre
       return call;
     },
     [&](auto &) ->  tree::function_call {
-      d.diag(loc, "error"_s, "calee in functiona call must be a function");
+      d.diag(loc, "error"_s, "'{}' is not a pointer to function type", calee->type);
       return {};
     }
   });
@@ -122,7 +131,7 @@ tree::expression semantics::maybe_build_cast_expression(source_range loc, tree::
       return {};
     },
     [&](auto &, auto &) -> expression {
-      d.diag(loc, "error"_s, "incompatible types to cast expression");
+      d.diag(loc, "error"_s, "invalid cast from '{}' to '{}'", to, from->type);
       return {};
     }
   ));
@@ -146,7 +155,7 @@ tree::type_decl semantics::get_common_type(variant<lex::binary_tok, lex::assign_
   using namespace tree;
   return visit(lhstype, rhstype, [&]<class L, class R>(L &l, R &r) -> type_decl {
     if(!visit(op, [&](auto op) { return is_compatible(op, l, r); })) {
-      d.diag(loc, "error"_s, "incompatible types ({} and {})", type_exp_format{lhstype}, type_exp_format{rhstype});
+      d.diag(loc, "error"_s, "incompatible types ('{}' and '{}')", lhstype, rhstype);
       return {};
     }
 
@@ -201,7 +210,7 @@ tree::assign_expression semantics::build_assign_expression(lex::assign_tok op, t
 
 tree::ternary_expression semantics::build_ternary_expression(tree::expression cond, tree::expression lhs, tree::expression rhs) {
   if(!cond->type.is_narrow<tree::scalar_type_t>()) {
-    d.diag(cond->loc + rhs->loc, "error"_s, "operand of ternary expression must be scalar type");
+    d.diag(cond->loc + rhs->loc, "error"_s, "operand type eof ternary expression '{}' is not a scalar type", cond->type);
     return {};
   }
   tree::ternary_expression_t ternary{.cond = cond, .lhs = lhs, .rhs = rhs};
@@ -248,7 +257,7 @@ tree::expression semantics::build_unary_expression(source_range loc, lex::token 
         der.type = tree::function_type(ptr->type) ? expr->type : ptr->type;
         r = der;
       } else {
-        d.diag(loc, "error"_s, "cannot dereference non pointer type");
+        d.diag(loc, "error"_s, "cannot dereference non pointer type '{}'", expr->type);
         return;
       }
     },
@@ -275,19 +284,19 @@ tree::expression semantics::build_unary_expression(source_range loc, lex::token 
 
       if(s == "+"_s || s == "-"_s) {
         if(!expr->type.is_narrow<tree::arithmetic_type_t>()) {
-          d.diag(loc, "error"_s, "operand of unary '{}' must be arithmetic type", s.c_str());
+          d.diag(loc, "error"_s, "operand of unary '{}' must be arithmetic type (type: '{}')", s.c_str(), expr->type);
           return;
         }
         unary.type = expr->type = promote(expr->type);
       } else if(s == "~"_s) {
         if(!expr->type.is_narrow<tree::integer_type_t>()) {
-          d.diag(loc, "error"_s, "operand of unary '{}' must be integer type", s.c_str());
+          d.diag(loc, "error"_s, "operand of unary '{}' must be integer type (type: '{}')", s.c_str(), expr->type);
           return;
         }
         unary.type = expr->type = promote(expr->type);
       } else if(s == "!"_s) {
         if(!expr->type.is_narrow<tree::scalar_type_t>()) {
-          d.diag(loc, "error"_s, "operand of unary '{}' must be scalar type", s.c_str());
+          d.diag(loc, "error"_s, "operand of unary '{}' must be scalar type (type: '{}')", s.c_str(), expr->type);
           return;
         }
         unary.type = tree::int_type_node;
