@@ -52,12 +52,19 @@ void basic_block::add_pred(basic_block *bb) {
     bb->search_def_for_phi(phi.key, phi.value.first->elts, bb);
 
 }
+
 struct cfg_stream {
   control_flow_graph &cfg;
 
   cfg_stream &operator>>(auto &&) { return *this; }
   cfg_stream &operator>>(basic_block *&bb) { bb = cfg.last_bb; return *this; }
   cfg_stream &operator>>(tree::op &op) { op = cfg.last_op; return *this;  }
+  cfg_stream &operator<<(tree::expression expr) {
+    *this >> expr;
+    if((tree::cst) cfg.last_op)
+      cfg.last_op = cfg.last_bb->add_assign(cfg.last_op, cfg.make_tmp(cfg.last_op->type));
+    return *this;
+  }
   cfg_stream &operator>>(tree::expression expr) { if(expr) cfg.construct(expr); return *this;  }
   cfg_stream &operator>>(tree::statement  stmt) { if(stmt) cfg.construct(stmt); return *this;  }
   template<class ...T> cfg_stream &operator>>(variant<T...> &v) { visit(v, [&](auto tree) { if(tree) *this >> tree; }); return *this; }
@@ -176,7 +183,7 @@ void control_flow_graph::construct(tree::statement stmt) {
     [&](tree::if_statement_t &if_) {
       basic_block *pre_if, *if_start, *if_end, *else_end, *else_start;
       tree::op cond;
-      cfg() >> if_.cond >> cond
+      cfg() << if_.cond >> cond
             >> pre_if
             >> add_bb(pre_if) >> if_start    >> if_.if_stmt   >> if_end
             >> add_bb(pre_if) >> else_start  >> if_.else_stmt >> else_end
@@ -189,7 +196,7 @@ void control_flow_graph::construct(tree::statement stmt) {
       basic_block *cond_bb, *loop_body, *loop_finish;
       tree::op cond;
 
-      cfg() >> for_.clause     >> add_bb(last_bb) >> cond_bb >> for_.cond >> cond
+      cfg() >> for_.clause     >> add_bb(last_bb) >> cond_bb << for_.cond >> cond
             >> add_bb(last_bb) >> loop_body >> for_.body >> for_.step >> loop_finish
             >> loop_finish->jump(*cond_bb)
             >> cond_bb->br(cond, *loop_body, add_bb(cond_bb));
@@ -200,7 +207,7 @@ void control_flow_graph::construct(tree::statement stmt) {
       basic_block *cond_bb, *loop_body, *loop_finish;
       tree::op cond;
 
-      cfg() >> add_bb(last_bb) >> cond_bb >> while_.cond >> cond
+      cfg() >> add_bb(last_bb) >> cond_bb << while_.cond >> cond
             >> add_bb(last_bb) >> loop_body >> while_.body
             >> last_bb->jump(*cond_bb)
             >> cond_bb->br(cond, *loop_body, add_bb(cond_bb));
