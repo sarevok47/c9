@@ -36,9 +36,10 @@ static void dump_op(FILE *out, op op, data_type type) {
                [&](decltype("w"_s)) { return _16; },
                [&](decltype("l"_s)) { return _32; },
                [&](decltype("q"_s)) { return _64; },
+               [&](auto) -> sv * { c9_assert(0); }
              })[idx]);
     },
-    [&](xmmreg xmmreg) { fprint(out, "%xmm_{}", size_t(xmmreg)); },
+    [&](xmmreg xmmreg) { fprint(out, "%xmm{}", size_t(xmmreg)); },
     [&](narrow<memop> auto op) {
       fprint(out, "{}{:+d}(", op.sym, op.offset);
       dump_op(out, op.base, "q"_s);
@@ -103,8 +104,8 @@ static data_type get_type(tree::type_decl type) {
     [](unsigned_long_type_t &)      -> data_type { return "q"_s; },
     [](long_long_type_t &)          -> data_type { return "q"_s; },
     [](unsigned_long_long_type_t &) -> data_type { return "q"_s; },
-    [](float_type_t  &)             -> data_type { return "l"_s; },
-    [](double_type_t &)             -> data_type { return "q"_s; },
+    [](float_type_t  &)             -> data_type { return "ss"_s; },
+    [](double_type_t &)             -> data_type { return "sd"_s; },
     [](long_double_type_t &)        -> data_type { return "q"_s; },
     [](pointer_t &)                 -> data_type { return "q"_s; },
     [](array_t   &)                 -> data_type { return "q"_s; },
@@ -114,10 +115,12 @@ static data_type get_type(tree::type_decl type) {
 }
 static size_t size(data_type dt) {
   return visit(dt, overload {
-    [](decltype("b"_s)) { return 1; },
-    [](decltype("w"_s)) { return 2; },
-    [](decltype("l"_s)) { return 4; },
-    [](decltype("q"_s)) { return 8; },
+    [](decltype("b"_s))  { return 1; },
+    [](decltype("w"_s))  { return 2; },
+    [](decltype("l"_s))  { return 4; },
+    [](decltype("q"_s))  { return 8; },
+    [](decltype("ss"_s)) { return 4; },
+    [](decltype("sd"_s)) { return 8; },
   });
 }
 struct function_codegen {
@@ -137,8 +140,13 @@ struct function_codegen {
 
   void dump(FILE *out);
 };
-static intreg int_call_conv_sysv[] = { intreg::rdi, intreg::rsi, intreg::rdx, intreg::rcx, intreg::r8,intreg::r9 };
+static std::array int_call_conv_sysv = { intreg::rdi, intreg::rsi, intreg::rdx, intreg::rcx, intreg::r8,intreg::r9 };
 constexpr static intreg int_ret_reg = intreg::rax;
+static auto xmm_call_conv_sysv = [] {
+  return make_seq(7_c)([&](auto ...c) { return std::array{xmmreg(c()) ...}; });
+}();
+constexpr static xmmreg xmm_ret_reg = xmmreg::xmm0;
+
 class codegen {
   size_t nlabel = 1;
   std::set<tree::variable> section_data;
@@ -163,11 +171,21 @@ public:
         cfg.unssa();
         cfg.convert_to_two_address_code();
         cfg::cfg_walker walk{cfg.entry};
+        bool int_ = bool((tree::integer_type) strip_type(fun.type));
+      {
         regalloc::register_allocator alloc{cfg, x86::intreg{}, x86::op{}, x86::int_call_conv_sysv, x86::int_ret_reg};
+        alloc.spill_ret = int_;
+        alloc.spill_sofs = 16;
         alloc.tab[size_t(x86::intreg::rsp)].second = false;
         alloc.tab[size_t(x86::intreg::rbp)].second = false;
         alloc.tab[size_t(x86::intreg::rip)].second = false;
-        alloc();
+        alloc([](tree::type_decl type) { return (tree::integer_type) type || (tree::pointer) type; } );
+      }
+      {
+        regalloc::register_allocator alloc{cfg, x86::xmmreg{}, x86::op{}, x86::xmm_call_conv_sysv, x86::xmm_ret_reg};
+        alloc.spill_ret = !int_;
+        alloc([](tree::type_decl type) { return (tree::floating_type) type; });
+      }
         function_codegen codegen{};
         codegen.gen(cfg.entry);
         section_text.emplace_back(fun.definition ? c9::mov(codegen) : opt<function_codegen>{}, tree::function(decl));

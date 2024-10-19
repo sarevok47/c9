@@ -3,7 +3,7 @@
 #include "target.hpp"
 
 
-
+#include "tree-dump.hpp"
 auto visitor(auto &&f) { return [&](auto &&value) { return f(value); }; }
 namespace c9 { namespace x86 {
 using namespace tree;
@@ -94,13 +94,52 @@ void function_codegen::gen(tree::expression expr, op dst) {
       });
     },
     [&](function_call_t &fcall) {
-      intreg *it = int_call_conv_sysv;
-      for(auto arg : fcall.args) {
-        if(it != std::end(int_call_conv_sysv))
-          ++it, gen(arg, *it);
-        else {
-          // push
+      intreg *int_it = int_call_conv_sysv.begin();
+      xmmreg *xmm_it = xmm_call_conv_sysv.begin();
+
+      auto pass_arg = [&](auto op, auto &it, auto &arr) {
+        if(it == arr.end()) {
+          sp += 8;
+          *this << mov{"q"_s, {op, memop{intreg::rsp, sp}}};
+        }  else                *this << mov{"q"_s, {op, *it++}};
+      };
+
+      for(auto arg : fcall.args)
+        if(auto s = (tree::structural_decl) arg->type; s && s->size > 16) {
+          auto memop = (x86::memop) gen(tree::op(arg));
+          for(size_t i = 0; i != s->size; i += s->align) {
+            *this << mov{"q"_s, {memop, int_call_conv_sysv[0]}}
+                  << mov{"q"_s, {int_call_conv_sysv[0], x86::memop{intreg::rsp, sp += 8}} };
+          }
         }
+
+      for(auto arg : fcall.args) {
+        arg->type(overload {
+          [&](narrow<tree::structural_decl_t> auto &s) {
+            switch(s.size) {
+              case 16: {
+                auto memop = (x86::memop) gen(tree::op(arg));
+                pass_arg(memop, int_it, int_call_conv_sysv);
+                memop.offset += 8;
+                pass_arg(memop, int_it, int_call_conv_sysv);
+                break;
+              }
+              case 0 ... 8:
+                pass_arg((x86::memop) gen(tree::op(arg)), int_it, int_call_conv_sysv);
+                break;
+              default:
+                // already done
+                break;
+            }
+          },
+          [&](narrow<tree::pointer_t>       auto &) { pass_arg(gen(tree::op(arg)), int_it, int_call_conv_sysv); },
+          [&](narrow<tree::integer_type_t>  auto &) { pass_arg(gen(tree::op(arg)), int_it, int_call_conv_sysv); },
+          [&](narrow<tree::floating_type_t> auto &) { pass_arg(gen(tree::op(arg)), xmm_it, xmm_call_conv_sysv); },
+          [&](tree::long_double_type_t &) {
+
+          },
+          [](auto &) {}
+        });
       }
       *this << call{gen(tree::op(fcall.calee)) };
       // TODO ADD TYPE HANDLER INSTEAD OF "q"_s

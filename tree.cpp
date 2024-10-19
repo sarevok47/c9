@@ -109,7 +109,7 @@ cst tree_fold(expression expr, sv &err) {
        return do_cast(cst_t{ .data = (__uint128_t) int_.value}, integer_type(int_.type));
     },
     [&](float_cst_expression_t float_) -> cst {
-       return do_cast(cst_t{ .data = float_.value}, float_type(float_.type));
+       return do_cast(cst_t{ .data = float_.value}, floating_type(float_.type));
     },
     [&](cast_expression_t cast_) -> cst {
       if(auto cst = tree_fold(cast_.cast_from, err)) {

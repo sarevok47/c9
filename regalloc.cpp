@@ -24,24 +24,6 @@ void register_allocator::compute_interval(cfg::basic_block *bb, tree::op def) {
   }
   intervals.emplace(li);
 }
-void register_allocator::compute_intervals() {
-  for(auto def : cfg.vars.map<tree::variable_t>())
-    compute_interval(&cfg.entry, def);
-  for(cfg::basic_block *bb = &cfg.entry; bb; bb = bb->step()) {
-    for(auto def : bb->def.map<tree::ssa_variable_t>())
-      compute_interval(bb, def);
-    for(auto def : bb->def.map<tree::temporary_t>())
-      compute_interval(bb, def);
-  }
-
-#if 0
-  for(auto interval : intervals) {
-    fprint(stderr, "interval: '");
-    cfg::tree_dump(stderr, interval.op);
-    fprintln(stderr, "' start: {}, finish: {}", interval.start, interval.finish);
-  }
-#endif
-}
 std::pair<tree::target_op, bool> *register_allocator::next_reg() {
   if(auto p = std::ranges::find_if(tab, [](auto pair) { return pair.second; }); p != tab.end()) {
     p->second = false;
@@ -128,6 +110,7 @@ void register_allocator::reload(live_interval li, size_t insn_pos, std::list<tre
       reg->type = li.op->type;
       return reload(reg);
     }
+
   auto reg = next_reg()->first.cpy();
   reg->type = li.op->type;
   reload(reg);
@@ -145,9 +128,14 @@ void register_allocator::process_interval(live_interval li) {
     for(auto insn : bb->insns | iter_range) {
       if(auto mov = comp_exp_cast<tree::mov>(*insn))
         if(auto funcall = (tree::function_call) mov->src) {
-          get_spill_reg_for_call(ret_reg, insn_cnt, insn, mov->dst);
-          for(size_t i = 0; i != funcall->args.size(); ++i)
+          if(spill_ret) get_spill_reg_for_call(ret_reg, insn_cnt, insn, mov->dst);
+          for(size_t i = 0; i != funcall->args.size() && i < std::size(call_regs); ++i)
             get_spill_reg_for_call(call_regs[i], insn_cnt, insn, mov->dst);
+
+          if(spill_sofs != -1 && !funcall->args.size()
+            && std::ranges::any_of(funcall->args, [&](auto a) { return a->type->size > spill_sofs; })
+          )
+            get_spill_reg_for_call(call_regs[0], insn_cnt, insn, mov->dst);
         }
 
       if(reg && insn_cnt == li.spill_pos) {

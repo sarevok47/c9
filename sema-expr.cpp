@@ -56,6 +56,7 @@ tree::function_call semantics::build_function_call(source_range loc, tree::expre
       }
 
       for(size_t i = 0; i < args.size(); ++i) {
+        if(i == fun.params.size()) break;
         auto paramtype = strip_type(fun.params[i].type);
         if(!visit(strip_type(args[i]->type), paramtype, [&](auto &l, auto &r) {
           return is_compatible(lex::assign_tok{"="_s}, l, r);

@@ -6,7 +6,7 @@ void tree_dump(FILE *out, tree::statement tree) {
     fprint(out, "\t");
   visit(tree, overload {
     [&](tree::mov_t &mov) {
-  //    tree_dump(out, mov.dst->type);
+     tree_dump(out, mov.dst->type);
       fprint(out, " ");
       tree_dump(out, mov.dst);
       fprint(out, " = ");
