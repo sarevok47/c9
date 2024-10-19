@@ -19,6 +19,10 @@ void tree_dump(FILE *out, tree::statement tree) {
       fprint(out, "*");
       tree_dump(out, deref.expr);
     },
+    [&](tree::addressof_t addr) {
+      fprint(out, "&");
+      tree_dump(out, addr.expr);
+    },
     [&](tree::load_addr_t load_addr) {
       fprint(out, "*");
       tree_dump(out, load_addr.dst);

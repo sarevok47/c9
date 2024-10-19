@@ -262,7 +262,7 @@ TREE_DEF(record_decl, : base_t {
 
   record_member find(string name);
 });
-TREE_DEF(access_member,         : lvalue_t { expression expr; record_member member; });
+TREE_DEF(access_member,         : lvalue_t { expression expr; record_member member; bool addr; });
 TREE_NARROW_DEF(structural_decl, : type_decl_t { string name; record_decl definition; } );
 TREE_DEF(struct_decl, :  structural_decl_t { });
 TREE_DEF(union_decl,  :  structural_decl_t { });

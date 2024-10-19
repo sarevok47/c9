@@ -239,6 +239,12 @@ tree::expression semantics::build_unary_expression(source_range loc, lex::token 
         r = deref->expr;
         return;
       }
+      if(auto access = (tree::access_member) expr) {
+        access->addr = true;
+        access->type = d.t.make_ptr(access->type);
+        r = access;
+        return;
+      }
       tree::addressof_t addr{.expr = expr};
       travel_lvalue(expr, [&](tree::variable var) { var->alias = true; });
       addr.loc = loc;

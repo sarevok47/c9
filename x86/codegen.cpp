@@ -74,8 +74,9 @@ void function_codegen::gen(tree::expression expr, op dst) {
       *this << mov{get_type(deref.type), { memop{dst, 0}, dst}};
     },
     [&](access_member_t &access) {
-      gen(access.expr, dst),
-      *this << mov{get_type(access.member->type), { memop{ dst, (int) access.member.offset}, dst }};
+      gen(access.expr, dst);
+      if(access.addr) *this << lea{get_type(access.member->type), { memop{ dst, (int) access.member.offset}, dst }};
+      else             *this << mov{get_type(access.member->type), { memop{ dst, (int) access.member.offset}, dst }};
     },
     [&](addressof_t &addr) {
       *this << lea{get_type(addr.type), { gen(tree::op(addr.expr)), dst }};
