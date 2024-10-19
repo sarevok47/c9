@@ -252,20 +252,17 @@ TREE_DEF(variable, : decl_t, op_t {
   variable_t(string name, type_decl type, bool is_global, auto scs) : name{name}, op_t{{.type = type}}, is_global{is_global}, scs{scs} {}
   variable_t(string name, type_decl type, std::vector<attribute> attrs) : name{name}, op_t{{.type = type}}, attrs{mov(attrs)} {}
 });
-TREE_DEF(access_member, : lvalue_t { expression expr; variable member; });
-TREE_DEF(pointer_access_member, : lvalue_t { expression expr; variable member; });
-
 TREE_DEF(decl_expression, : lvalue_t {
   decl declref;
   type_decl undecay;
 });
-
+struct record_member : variable { using variable::variable; size_t offset; };
 TREE_DEF(record_decl, : base_t {
-  struct record_member : variable { using variable::variable; size_t offset; };
   std::vector<record_member> fields;
 
-  variable find(string name);
+  record_member find(string name);
 });
+TREE_DEF(access_member,         : lvalue_t { expression expr; record_member member; });
 TREE_NARROW_DEF(structural_decl, : type_decl_t { string name; record_decl definition; } );
 TREE_DEF(struct_decl, :  structural_decl_t { });
 TREE_DEF(union_decl,  :  structural_decl_t { });
@@ -432,7 +429,7 @@ TREE_DEF(identifier_token, : base_t { location_t loc; string str; });
 
 // IR
 TREE_DEF(mov, : statement_t { expression src; op dst; });
-TREE_DEF(load_addr, : statement_t { op src, dst;});
+TREE_DEF(load_addr, : statement_t { op src, dst; size_t offset{}; });
 TREE_DEF(temporary, : op_t { size_t idx; });
 TREE_DEF(ssa_variable, : op_t { tree::variable var; size_t ssa_n, ssa_tab_n; });
 TREE_DEF(cst, : op_t {  variant<__uint128_t, long double> data; });
@@ -498,9 +495,9 @@ template<class T_t> template<narrow<T_t> U> tree_value<T_t>::operator tree_value
 }
 inline type_name_t::type_name_t(type_decl type) : type{type} { this->size = type->size; this->align = type->size; }
 
-inline variable record_decl_t::find(string name) {
+inline record_member record_decl_t::find(string name) {
   c9_assert(name.size());
-  variable r;
+  record_member r;
   for(auto field : fields) {
     if(field->name.empty())
       field(overload {

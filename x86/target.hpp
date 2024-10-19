@@ -40,7 +40,7 @@ static void dump_op(FILE *out, op op, data_type type) {
     },
     [&](xmmreg xmmreg) { fprint(out, "%xmm_{}", size_t(xmmreg)); },
     [&](narrow<memop> auto op) {
-      visit(op.offset, [&](auto offset) { fprint(out, "{}(", offset); });
+      fprint(out, "{}{:+d}(", op.sym, op.offset);
       dump_op(out, op.base, "q"_s);
       if constexpr(requires { op.index; }) {
         fprint(out, ", ");
@@ -90,7 +90,7 @@ static void dump_insn(FILE *out, insn insn) {
 
 static data_type get_type(tree::type_decl type) {
   using namespace tree;
-  return type(overload {
+  return strip_type(type)(overload {
     [](auto &)                      -> data_type { c9_assert(0); },
     [](signed_char_type_t &)        -> data_type { return "b"_s; },
     [](char_type_t &)               -> data_type { return "b"_s; },
@@ -109,6 +109,7 @@ static data_type get_type(tree::type_decl type) {
     [](pointer_t &)                 -> data_type { return "q"_s; },
     [](array_t   &)                 -> data_type { return "q"_s; },
     [](function_type_t   &)         -> data_type { return "q"_s; },
+    [](narrow<structural_decl_t> auto &)   -> data_type { return "q"_s; },
   });
 }
 static size_t size(data_type dt) {

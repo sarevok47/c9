@@ -123,28 +123,27 @@ struct semantics {
     return {{strip_type(type)->size, d.t.size_type_node, loc}};
   }
 
-  template<class T> T build_access_member_expression(tree::expression expr, string name) {
-    auto type = strip_type(expr->type);
+  tree::access_member build_access_member_expression(tree::expression expr, string name, bool ptr) {
+    auto check_type = strip_type(expr->type);
 
-    if(__is_same(T, tree::pointer_access_member)) {
-      if(!type.is<tree::pointer_t>()) {
-        d.diag(expr->loc, "error"_s, "left operand of '->' must be a pointer");
-        return {};
-      }
-      type = tree::pointer(type)->type;
-    }
+    if(ptr && (expr = build_unary_expression(expr->loc, "*"_s, expr)))
+      check_type = tree::pointer(expr->type)->type;
 
-    if(!type.is_narrow<tree::structural_decl_t>()) {
+    if(!check_type.is_narrow<tree::structural_decl_t>()) {
       d.diag(expr->loc, "error"_s, "cannot access member in not structural types");
       return {};
     }
-    if(is_incomplete_type(type)) {
+    if(is_incomplete_type(check_type)) {
       d.diag(expr->loc, "error"_s, "cannot access incomplete type");
       return {};
     }
 
-    if(tree::variable field = tree::structural_decl(type)->definition->find(name))
-      return {{.expr = expr, .member = field}};
+    if(tree::record_member field = tree::structural_decl(check_type)->definition->find(name)) {
+      tree::access_member_t access{.expr = expr, .member = field};
+      access.loc = expr->loc;
+      access.type = field->type;
+      return access;
+    }
 
     d.diag(expr->loc, "error"_s, "no matching '{}' member", name);
     return {};

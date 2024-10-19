@@ -7,7 +7,7 @@ namespace x86 {
 enum class intreg { rax, rcx, rdx, rbx, rsi, rdi, rbp, rsp, r8, r9, r10, r11, r12, r13, r14, r15, rip, num_of };
 enum class xmmreg { xmm0, num_of };
 using sym = string;
-struct memop { intreg base; variant<int, sym> offset; };
+struct memop { intreg base; int offset; string sym; };
 struct memop_index : memop { intreg index; };
 struct memop_scale : memop_index { variant_t<1_c, 2_c, 4_c, 8_c> scale; };
 using op = variant<sym, intreg, xmmreg, int, memop, memop_index, memop_scale>;

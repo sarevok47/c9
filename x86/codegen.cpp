@@ -46,9 +46,9 @@ op function_codegen::gen(tree::op operand) {
       return (x86::op) op.data;
     },
     [&](tree::variable_t &var) -> op {
-      return var.is_global ? memop{intreg::rip, var.name} : ({
+      return var.is_global ? memop{intreg::rip, 0, var.name} : ({
         auto &pos = local_vars[operand];
-        if(!pos) pos = sp += 4;
+        if(!pos) pos = sp += var.type->size;
         memop{intreg::rsp, (int) pos};
       });
     },
@@ -72,6 +72,10 @@ void function_codegen::gen(tree::expression expr, op dst) {
     [&](dereference_t &deref) {
       gen(deref.expr, dst);
       *this << mov{get_type(deref.type), { memop{dst, 0}, dst}};
+    },
+    [&](access_member_t &access) {
+      gen(access.expr, dst),
+      *this << mov{get_type(access.member->type), { memop{ dst, (int) access.member.offset}, dst }};
     },
     [&](addressof_t &addr) {
       *this << lea{get_type(addr.type), { gen(tree::op(addr.expr)), dst }};
@@ -111,6 +115,23 @@ void function_codegen::gen(tree::expression expr, op dst) {
   });
 }
 void function_codegen::gen(tree::statement stmt) {
+  auto genmem = [&](auto insn) {
+    bool reload = __is_same(decltype(insn), reload_t);
+    auto reg = gen(tree::op(insn.reg));
+    memop memop;
+    if(auto var = (tree::variable) insn.op; var && (var->is_global || var->scs == "static"_s))
+      memop = {intreg::rip, 0, var->name};
+    else {
+      auto &pos = local_vars[insn.op];
+      if(!pos) pos = sp += insn.op->type->size;
+      memop = {intreg::rsp, (int) pos};
+    }
+    op src = memop, dst = reg;
+    if(!reload) std::swap(src, dst);
+
+    if(!(tree::scalar_type) insn.op->type) *this << lea{"q"_s, {src, dst}};
+    else *this << mov{get_type(insn.op->type), {src, dst}};
+  };
   stmt(overload {
     [](auto &) {},
     [&](mov_t mov) {
@@ -120,28 +141,16 @@ void function_codegen::gen(tree::statement stmt) {
     [&](compound_statement_t &compound) {
       for(auto stmt : compound) gen(stmt);
     },
-    [&](spill_statement_t &spill) {
-      auto reg = gen(tree::op(spill.reg));
-      if(auto var = (tree::variable) spill.op; var && (var->is_global || var->scs == "static"_s))
-        *this << mov{get_type(spill.op->type), {reg, memop{intreg::rip, var->name} }};
-      else {
-        auto &pos = local_vars[spill.op];
-        if(!pos) pos = sp += 4;
-        *this << mov{get_type(spill.op->type), {reg, memop{intreg::rsp, (int) pos} }};
-      }
-    },
-    [&](reload_t &reload) {
-      auto reg = gen(tree::op(reload.reg));
-      if(auto var = (tree::variable) reload.op; var && (var->is_global || var->scs == "static"_s))
-        *this << mov{get_type(reload.op->type), {memop{intreg::rip, var->name}, reg }};
-      else {
-        auto &pos = local_vars[reload.op];
-        if(!pos) pos = sp += 4;
-        *this << mov{get_type(reload.op->type), {memop{intreg::rsp, (int) pos}, reg }};
-      }
-    },
+    [&](spill_statement_t &spill) { genmem(spill); },
+    [&](reload_t &reload) { genmem(reload); },
     [&](load_addr_t &load) {
-      *this << mov(get_type(load.src->type), { gen(load.src), memop{gen(load.dst)} });
+      auto dst = gen(load.dst);
+      visit(dst, overload {
+        [&](auto &) {c9_assert(0); },
+        [&](intreg reg) {  dst = memop{reg, (int) load.offset }; },
+        [&](narrow<memop> auto &mem) { mem.offset += load.offset; }
+      });
+      *this << mov(get_type(load.src->type), {gen(load.src), dst});
     },
     [&](br_t br) {
       *this << test{get_type(br.cond->type), {gen(br.cond), gen(br.cond)}};

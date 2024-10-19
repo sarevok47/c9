@@ -98,6 +98,10 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
       addr.expr = construct(addr.expr);
       return expr;
     },
+    [&](tree::access_member_t &access) {
+      access.expr = construct(access.expr);
+      return expr;
+    },
     [&](tree::cast_expression_t &cast) -> tree::expression {
       if(visit(cast.type, strip_type(cast.cast_from->type), overload {
         [&](auto &lhs, auto &rhs) requires requires { lhs.is_integer(); rhs.is_integer(); } {
@@ -128,6 +132,10 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
       auto dst = construct(assign.lhs);
       auto src = construct_expr_no_op(assign.rhs);
       last_bb->add_assign(src, dst);
+      if(auto access = (tree::access_member) assign.lhs) {
+        last_bb->add_insn(tree::load_addr{{.src = dst, .dst = tree::op(access->expr), .offset = access->member.offset }});
+        return access->expr;
+      }
       if(auto deref = (tree::dereference) assign.lhs) {
         last_bb->add_insn(tree::load_addr{{.src = dst, .dst = tree::op(deref->expr) }});
         return deref->expr;

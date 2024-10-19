@@ -165,19 +165,12 @@ tree::expression parser::postfix_expression() {
                    *this <= ")"_req;
                  return build_function_call({loc, peek_token().loc}, primary, mov(args));
                },
-               [&](decltype("."_s)) -> tree::expression {
+               [&]<char ...c>(string_seq<c...> s) -> tree::expression requires (s == "."_s || s == "->"_s) {
                  consume();
                  auto tok = peek_token();
                  if(require(type_c<sema::id>))
-                   return build_access_member_expression<tree::access_member>(primary, sema::id(tok).name);
+                   return build_access_member_expression(primary, sema::id(tok).name, s == "->"_s);
 
-                 return {};
-               },
-               [&](decltype("->"_s)) -> tree::expression {
-                 consume();
-                 auto tok = peek_token();
-                 if(require(type_c<sema::id>))
-                   return build_access_member_expression<tree::pointer_access_member>(primary, sema::id(tok).name);
                  return {};
                },
                [&]<char ...c>(string_seq<c...> s) -> tree::expression requires (lex::is_crement(s)) {
