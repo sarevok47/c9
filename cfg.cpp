@@ -132,14 +132,10 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
       auto dst = construct(assign.lhs);
       auto src = construct_expr_no_op(assign.rhs);
       last_bb->add_assign(src, dst);
-      if(auto access = (tree::access_member) assign.lhs) {
+      if(auto access = (tree::access_member) assign.lhs)
         last_bb->add_insn(tree::load_addr{{.src = dst, .dst = tree::op(access->expr), .offset = access->member.offset }});
-        return access->expr;
-      }
-      if(auto deref = (tree::dereference) assign.lhs) {
+      if(auto deref = (tree::dereference) assign.lhs)
         last_bb->add_insn(tree::load_addr{{.src = dst, .dst = tree::op(deref->expr) }});
-        return deref->expr;
-      }
       return dst;
     },
     [&](tree::binary_expression_t &b) -> tree::expression {
