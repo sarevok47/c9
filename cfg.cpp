@@ -267,8 +267,9 @@ void control_flow_graph::convert_to_two_address_code() {
         mov->src(overload {
           [](auto &) {},
           [&](auto &expr) requires requires { expr.lhs; expr.rhs; } {
-            tree::mov pre{{.src = expr.rhs, .dst = mov->dst}};
-            expr.rhs = pre->dst;
+            tree::mov pre{{.src = expr.lhs, .dst = mov->dst}};
+            expr.lhs = pre->dst;
+            std::swap(expr.lhs, expr.rhs);
             tree::compound_statement_t i{{}, { pre, *insn }};
             *insn = i;
           }
