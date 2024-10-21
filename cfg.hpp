@@ -6,7 +6,8 @@
 #include "tree.hpp"
 #include "tree-trait.hpp"
 #include "simple.hpp"
-#include "flat-map.hpp"
+
+
 namespace c9 { namespace tree { static bool operator<(tree::op lhs, tree::op rhs) { return lhs == rhs;  }} }
 namespace c9 { namespace cfg {
 template<class T> struct count_map {
@@ -131,6 +132,7 @@ struct cfg_walker {
   }
   void operator()(auto &&f) { (*this)(f, entry); }
 };
+struct param { tree::op op; tree::target_op reg; };
 class control_flow_graph {public:
   driver &d;
   size_t &nlabel, ntmp{}, nssa{};size_t insn_count{};
@@ -138,6 +140,9 @@ class control_flow_graph {public:
   tree::op last_op;
 
   defusechain vars;
+  tree::function function;
+
+  std::vector<param> &params;
 
   tree::op make_tmp(tree::type_decl type) {
     tree::temporary_t tmp{.idx = ntmp++};

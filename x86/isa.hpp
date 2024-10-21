@@ -5,7 +5,7 @@ namespace c9 {
 namespace cfg { struct basic_block; }
 namespace x86 {
 enum class intreg { rax, rcx, rdx, rbx, rsi, rdi, rbp, rsp, r8, r9, r10, r11, r12, r13, r14, r15, rip, num_of };
-enum class xmmreg { xmm0, num_of = 16 };
+enum class xmmreg { xmm0, xmm1, xmm2, xmm3, xmm4, xmm5, xmm6, xmm7, xmm8, xmm9, xmm10, xmm11, xmm12, xmm13, xmm14, xmm15, num_of };
 using sym = string;
 struct memop { intreg base; int offset; string sym; };
 struct memop_index : memop { intreg index; };
@@ -15,7 +15,7 @@ using op = variant<sym, intreg, xmmreg, int, memop, memop_index, memop_scale>;
 
 using data_type = variant_t<"b"_s, "w"_s, "l"_s, "q"_s, "ss"_s, "sd"_s>;
 template<size_t opn, auto name> struct alu_insn { data_type type; op ops[opn]; };
-struct jmp { cfg::basic_block &target; };
+struct jmp { cfg::basic_block *target; };
 struct jcc : jmp {
   bool is_unsigned{};
   variant_t<"ne"_s, "e"_s> op;
@@ -32,7 +32,8 @@ using xor_  = alu_insn<2, "xor"_s>;
 using neg =   alu_insn<1, "neg"_s>;
 using not_ =  alu_insn<1, "not"_s>;
 using push = alu_insn<1, "push"_s>;
+using pop = alu_insn<1, "pop"_s>;
 struct movsx { data_type src, dst; op ops[2]; };
 
-using insn = variant<add, sub, mov, lea, test, xor_, neg, not_, jmp, jcc, call, ret, push, movsx>;
+using insn = variant<add, sub, mov, lea, test, xor_, neg, not_, jmp, jcc, call, ret, push, pop, movsx>;
 }}

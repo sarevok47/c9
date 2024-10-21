@@ -79,8 +79,8 @@ static void dump_insn(FILE *out, insn insn) {
       dump_op(out, movsx.ops[1], movsx.dst);
       fprintln(out, "");
     },
-    [&](jmp jmp) { fprintln(out, "jmp .bb_{}", jmp.target.i); },
-    [&](jcc jcc) { visit(jcc.op, [&](auto s) { fprintln(out, "j{} .bb_{}", s.c_str(), jcc.target.i); }); },
+    [&](jmp jmp) { fprintln(out, "jmp .bb_{}", jmp.target->i); },
+    [&](jcc jcc) { visit(jcc.op, [&](auto s) { fprintln(out, "j{} .bb_{}", s.c_str(), jcc.target->i); }); },
     [&](call call) { fprint(out, "call ");  dump_op(out, call.target, "l"_s); fprintln(out, ""); },
     [&](ret &) { fprintln(out, "ret"); },
     [](auto) {
@@ -123,13 +123,28 @@ static size_t size(data_type dt) {
     [](decltype("sd"_s)) { return 8; },
   });
 }
+static data_type get_int_type(size_t size) {
+  switch(size) {
+    case 1: return "b"_s;
+    case 2: return "w"_s;
+    case 4: return "l"_s;
+    case 8: return "q"_s;default: return "q"_s;
+  }
+}
+static data_type get_xmm_type(size_t size) {
+  switch(size) {
+    case 4: return "ss"_s;
+    case 8: return "sd"_s;
+  }
+}
 struct function_codegen {
+  cfg::control_flow_graph &cfg;
   std::vector<insn> insns;
   int sp{};
 
-  flat_map<tree::op, size_t> local_vars;
+  flat_map<tree::op, int> local_vars;
   std::vector<std::pair<size_t, size_t>> label_list;
-  std::vector<int *> ret_insert_add_sp_pos;
+  std::vector<size_t> ret_insert_add_sp_pos;
 
   void gen(cfg::basic_block &entry);
   op gen(tree::op op);
@@ -163,7 +178,8 @@ public:
 
       },
       [&](tree::function_t &fun) {
-        cfg::control_flow_graph cfg{d, nlabel};
+        std::vector<cfg::param> params(tree::function_type(fun.type)->params.size());
+        cfg::control_flow_graph cfg{.d = d, .nlabel = nlabel,  .function = tree::function(decl), .params = params};
         cfg.construct(fun.definition);
         for(auto var : cfg.vars.map<tree::variable_t>()) section_data.emplace(var);
         c9::tree_opt::constprop(cfg);
@@ -186,7 +202,7 @@ public:
         alloc.spill_ret = !int_;
         alloc([](tree::type_decl type) { return (tree::floating_type) type; });
       }
-        function_codegen codegen{};
+        function_codegen codegen{cfg};
         codegen.gen(cfg.entry);
         section_text.emplace_back(fun.definition ? c9::mov(codegen) : opt<function_codegen>{}, tree::function(decl));
       }

@@ -72,7 +72,7 @@ struct cfg_stream {
 
 cfg_stream control_flow_graph::cfg() { return cfg_stream{*this}; }
 tree::op control_flow_graph::construct_var(tree::variable var) {
-  if(var->is_global || var->alias || var->scs == "static"_s || !(tree::scalar_type) var->type) {
+  if(var->is_global || var->alias || var->scs == "static"_s || !(tree::scalar_type) strip_type(var->type)) {
     vars.insert(var);
     last_bb->use.insert(var);
     return var;
@@ -126,7 +126,7 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
     },
     [&](tree::decl_expression_t &expr) -> tree::expression {
       if(auto var = (tree::variable) expr.declref) {
-        if(expr.type.get_data() != expr.undecay.get_data())
+        if(strip_type(expr.type).get_data() != strip_type(expr.undecay).get_data())
           return ({ tree::addressof_t a{.expr = construct_var(var)}; a.type = expr.type; a; });
 
         return construct_var(var);
@@ -224,7 +224,7 @@ void control_flow_graph::construct(tree::statement stmt) {
       loop_body->add_pred(last_bb);
     },
     [&](tree::return_statement_t &ret) {
-      ret.expr = construct_expr_no_op(ret.expr);
+      ret.expr = construct(ret.expr);
       last_bb->add_insn(stmt);
     },
     [&](tree::variable_t &var) {
@@ -253,8 +253,8 @@ void control_flow_graph::unssa() {
   tree::ssa_variable tab[nssa + 1];
   collect_phi_operands(tab);
 
-  for(auto bb = &entry; bb; bb = bb->step())
-     bb->phis.clear();
+ // for(auto bb = &entry; bb; bb = bb->step())
+    //bb->phis.clear();
 
   for_each_insn([&, ptab = (tree::ssa_variable *) tab](tree::statement &insn, basic_block &bb) {
     visit_ops(insn, [&](auto &op) {

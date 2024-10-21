@@ -207,7 +207,7 @@ TREE_DEF(postcrement_expression, : rvalue_t { lex::crement_tok op; expression ex
 TREE_DEF(addressof, : rvalue_t { expression expr; });
 TREE_DEF(dereference, : lvalue_t { expression expr; });
 
-TREE_DEF(function_call, : rvalue_t { expression calee; std::vector<expression> args; });
+TREE_DEF(function_call, : rvalue_t { expression calee; std::vector<expression> args;  });
 
 TREE_DEF(initializer_list, : rvalue_t {
   struct array_designator { expression index; };
@@ -246,10 +246,12 @@ TREE_DEF(variable, : decl_t, op_t {
   variant_t<""_s, "extern"_s, "static"_s, "auto"_s, "register"_s> scs;
 
   std::vector<attribute> attrs;
-  size_t ssa_count{}, ssa_tab_n{};
+  size_t ssa_count{}, ssa_tab_n{}, param_idx = -1;
   bool alias{};
+  string static_name;
 
-  variable_t(string name, type_decl type, bool is_global, auto scs) : name{name}, op_t{{.type = type}}, is_global{is_global}, scs{scs} {}
+  variable_t(string name, type_decl type, bool is_global, auto scs, size_t param_idx = -1)
+    : name{name}, op_t{{.type = type}}, is_global{is_global}, scs{scs}, param_idx{param_idx} {}
   variable_t(string name, type_decl type, std::vector<attribute> attrs) : name{name}, op_t{{.type = type}}, attrs{mov(attrs)} {}
 });
 TREE_DEF(decl_expression, : lvalue_t {
@@ -261,6 +263,7 @@ TREE_DEF(record_decl, : base_t {
   std::vector<record_member> fields;
 
   record_member find(string name);
+  void for_each(auto &&f);
 });
 TREE_DEF(access_member,         : lvalue_t { expression expr; record_member member; bool addr; });
 TREE_NARROW_DEF(structural_decl, : type_decl_t { string name; record_decl definition; } );
@@ -306,6 +309,8 @@ TREE_DEF(function, : decl_t, op_t {
   string name;
   compound_statement definition;
   variant_t<""_s, "extern"_s, "static"_s> scs;
+
+  tree::function_type ftype() { return tree::function_type(this->type); }
 
   function_t(string name, auto type, auto scs) : name{name}, op_t{{.type = type}}, scs{scs} {}
 });
@@ -509,6 +514,14 @@ inline record_member record_decl_t::find(string name) {
     if(r) break;
   }
   return r;
+}
+
+inline void record_decl_t::for_each(auto &&f) {
+  for(auto field : fields)
+    field(overload {
+      [&](auto &) { f(field); },
+      [&](narrow<structural_decl_t> auto &tree) { tree.definition->for_each(f); }
+    });
 }
 }}
 

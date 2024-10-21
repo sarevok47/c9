@@ -1,23 +1,77 @@
 #pragma once
 
 #include "target.hpp"
-
-
 #include "tree-dump.hpp"
+
 auto visitor(auto &&f) { return [&](auto &&value) { return f(value); }; }
 namespace c9 { namespace x86 {
 using namespace tree;
 
 void function_codegen::gen(cfg::basic_block &entry) {
+  *this << push{"q"_s, {intreg::rbp}} << mov{"q"_s, {intreg::rsp, intreg::rbp}};
+  size_t sub_sp = insns.size();
   *this << sub{"q"_s, {0, intreg::rsp}};
+
+  std::vector<insn> store_reg_insns;
+
+  std::pair int_{int_call_conv_sysv.begin(), int_call_conv_sysv.end()};
+  std::pair xmm{xmm_call_conv_sysv.begin(), xmm_call_conv_sysv.end()};
+  for(size_t i = 0; i != cfg.params.size(); ++i) {
+    auto &param = cfg.params[i];
+    auto type = strip_type(cfg.function->ftype()->params[0].type);
+
+    int param_sp = 8;
+    auto store_param = [&](auto &pair, op store_reg, op op, auto type) {
+      bool store = op.is<memop>() || pair.first == pair.second;
+      x86::op param_op = store ? store_reg : op;
+      insn insn;
+      insn = pair.first != pair.second
+             ? mov{type, {*pair.first++, param_op}}
+             : mov{type, {memop{intreg::rbp, param_sp += 8}, param_op}};
+      if(!param.op) return;
+      if(store) {
+        store_reg_insns.emplace_back(insn);
+        store_reg_insns.emplace_back(mov{type, {store_reg, op}});
+      } else
+        *this << insn;
+    };
+    auto p = [&](auto param) { return !param.op ? op{} : (param.reg ? param.reg->data[0_c] : gen(param.op)); };
+    type(overload {
+      [](auto &) {},
+      [&](narrow<tree::floating_type_t> auto &) {
+        store_param(xmm, xmmreg::xmm0, p(param), get_type(type));
+      },
+      [&](narrow<tree::pointer_t>      auto &type) { store_param(int_, intreg::rax, p(param), get_type(type)); },
+      [&](narrow<tree::integer_type_t> auto &type) { store_param(int_, intreg::rax, p(param), get_type(type)); },
+      [&](narrow<tree::structural_decl_t> auto &struct_) {
+        if(struct_.size <= 16) {
+          auto op = p(param);
+
+          struct_.definition->for_each([&](tree::record_member field) {
+            auto type = strip_type(field->type);
+            if((tree::floating_type) type)
+              store_param(xmm, xmmreg::xmm0, op, get_type(type));
+            else
+              store_param(int_, intreg::rax, op, get_type(type));
+          });
+
+        } else {
+          local_vars[param.op] = param_sp += 8;
+          param_sp += struct_.size;
+        }
+      }
+    });
+  }
+  insns.insert(insns.end(), store_reg_insns.begin(), store_reg_insns.end());
+
   for(auto bb = &entry; bb; bb = bb->step()) {
     size_t insn_idx = insns.size();
     label_list.emplace_back(insn_idx, bb->i);
     for(auto insn : bb->insns) gen(insn);
   }
 
-  ((sub &) insns.front()).ops[0] = (int) sp;
-  for(auto add : ret_insert_add_sp_pos) *add = (int) sp;
+  ((sub &) insns[sub_sp]).ops[0] = -sp;
+  for(auto add : ret_insert_add_sp_pos) ((x86::add &) insns[add]).ops[0] = -sp;
 }
 
 void function_codegen::dump(FILE *out) {
@@ -48,8 +102,15 @@ op function_codegen::gen(tree::op operand) {
     [&](tree::variable_t &var) -> op {
       return var.is_global ? memop{intreg::rip, 0, var.name} : ({
         auto &pos = local_vars[operand];
-        if(!pos) pos = sp += var.type->size;
-        memop{intreg::rsp, (int) pos};
+        if(!pos) pos = sp -= var.type->size;
+        memop{intreg::rbp, (int) pos};
+      });
+    },
+    [&](tree::ssa_variable_t &var) -> op {
+      return ({
+        auto &pos = local_vars[operand];
+        if(!pos) pos = sp -= var.type->size;
+        memop{intreg::rbp, (int) pos};
       });
     },
     [&](cst_t cst) {
@@ -70,13 +131,11 @@ void function_codegen::gen(tree::expression expr, op dst) {
       *this << movsx{get_type(cast.type), get_type(cast.cast_from->type), {dst, dst}};
     },
     [&](dereference_t &deref) {
-      gen(deref.expr, dst);
-      *this << mov{get_type(deref.type), { memop{dst, 0}, dst}};
+      *this << mov{get_type(deref.type), { memop{gen(tree::op(deref.expr)), 0}, dst}};
     },
     [&](access_member_t &access) {
-      gen(access.expr, dst);
-      if(access.addr) *this << lea{get_type(access.member->type), { memop{ dst, (int) access.member.offset}, dst }};
-      else             *this << mov{get_type(access.member->type), { memop{ dst, (int) access.member.offset}, dst }};
+      if(access.addr) *this << lea{get_type(access.member->type), { memop{ gen(tree::op(access.expr)), (int) access.member.offset}, dst }};
+      else            *this << mov{get_type(access.member->type), { memop{ gen(tree::op(access.expr)), (int) access.member.offset}, dst }};
     },
     [&](addressof_t &addr) {
       *this << lea{get_type(addr.type), { gen(tree::op(addr.expr)), dst }};
@@ -94,51 +153,41 @@ void function_codegen::gen(tree::expression expr, op dst) {
       });
     },
     [&](function_call_t &fcall) {
-      intreg *int_it = int_call_conv_sysv.begin();
-      xmmreg *xmm_it = xmm_call_conv_sysv.begin();
-
-      auto pass_arg = [&](auto op, auto &it, auto &arr) {
-        if(it == arr.end()) {
-          sp += 8;
-          *this << mov{"q"_s, {op, memop{intreg::rsp, sp}}};
-        }  else                *this << mov{"q"_s, {op, *it++}};
-      };
-
-      for(auto arg : fcall.args)
-        if(auto s = (tree::structural_decl) arg->type; s && s->size > 16) {
-          auto memop = (x86::memop) gen(tree::op(arg));
-          for(size_t i = 0; i != s->size; i += s->align) {
-            *this << mov{"q"_s, {memop, int_call_conv_sysv[0]}}
-                  << mov{"q"_s, {int_call_conv_sysv[0], x86::memop{intreg::rsp, sp += 8}} };
-          }
-        }
-
+      std::pair int_{int_call_conv_sysv.begin(), int_call_conv_sysv.end()};
+      std::pair xmm{xmm_call_conv_sysv.begin(), xmm_call_conv_sysv.end()};
       for(auto arg : fcall.args) {
-        arg->type(overload {
-          [&](narrow<tree::structural_decl_t> auto &s) {
-            switch(s.size) {
-              case 16: {
-                auto memop = (x86::memop) gen(tree::op(arg));
-                pass_arg(memop, int_it, int_call_conv_sysv);
-                memop.offset += 8;
-                pass_arg(memop, int_it, int_call_conv_sysv);
-                break;
-              }
-              case 0 ... 8:
-                pass_arg((x86::memop) gen(tree::op(arg)), int_it, int_call_conv_sysv);
-                break;
-              default:
-                // already done
-                break;
-            }
-          },
-          [&](narrow<tree::pointer_t>       auto &) { pass_arg(gen(tree::op(arg)), int_it, int_call_conv_sysv); },
-          [&](narrow<tree::integer_type_t>  auto &) { pass_arg(gen(tree::op(arg)), int_it, int_call_conv_sysv); },
-          [&](narrow<tree::floating_type_t> auto &) { pass_arg(gen(tree::op(arg)), xmm_it, xmm_call_conv_sysv); },
-          [&](tree::long_double_type_t &) {
-
-          },
-          [](auto &) {}
+        auto store_arg = [&](auto &pair, op op, auto type) {
+          if(pair.first != pair.second) ++pair.first;
+          else *this << mov{type, {op, memop{intreg::rbp, sp}}}, sp -= 8;
+        };
+        strip_type(arg->type)(overload {
+          [](auto &) {},
+             [&](narrow<tree::floating_type_t> auto &) {
+               store_arg(xmm, gen(tree::op(arg)), get_type(arg->type));
+             },
+             [&](narrow<tree::pointer_t>      auto &type) { store_arg(int_, gen(tree::op(arg)), get_type(arg->type)); },
+             [&](narrow<tree::integer_type_t> auto &type) { store_arg(int_, gen(tree::op(arg)), get_type(arg->type)); },
+             [&](narrow<tree::structural_decl_t> auto &struct_) {
+                auto op = (memop) {}; //gen(tree::op(arg))
+               if(struct_.size <= 16) {
+                 struct_.definition->for_each([&](tree::record_member field) {
+                   auto type = strip_type(field->type);
+                   if((tree::floating_type) type) {
+                     *this << mov{get_type(type), {op,xmmreg::xmm0}};
+                     store_arg(xmm, xmmreg::xmm0, get_type(type));
+                   } else {
+                     *this << mov{get_type(type), {op, intreg::rax}};
+                     store_arg(int_, intreg::rax, get_type(type));
+                   }
+                 });
+               } else {
+                 for(size_t i{}; i <= struct_.size; op.offset += 8, i += 8) {
+                   auto type = struct_.size - i < 8 ? get_int_type(struct_.size - i) : data_type("q"_s);
+                   *this << mov{type, {op, intreg::rax}};
+                   *this << mov{type, {intreg::rax, memop{intreg::rbp, sp}}}, sp -= 8;
+                 }
+               }
+             }
         });
       }
       *this << call{gen(tree::op(fcall.calee)) };
@@ -163,13 +212,13 @@ void function_codegen::gen(tree::statement stmt) {
       memop = {intreg::rip, 0, var->name};
     else {
       auto &pos = local_vars[insn.op];
-      if(!pos) pos = sp += insn.op->type->size;
-      memop = {intreg::rsp, (int) pos};
+      if(!pos) pos = sp -= insn.op->type->size;
+      memop = {intreg::rbp, (int) pos};
     }
     op src = memop, dst = reg;
     if(!reload) std::swap(src, dst);
 
-    if(!(tree::scalar_type) insn.op->type) *this << lea{"q"_s, {src, dst}};
+    if(!(tree::scalar_type) strip_type(insn.op->type)) *this << lea{"q"_s, {src, dst}};
     else *this << mov{get_type(insn.op->type), {src, dst}};
   };
   stmt(overload {
@@ -194,16 +243,16 @@ void function_codegen::gen(tree::statement stmt) {
     },
     [&](br_t br) {
       *this << test{get_type(br.cond->type), {gen(br.cond), gen(br.cond)}};
-      *this << jcc{{br.false_}};
+      *this << jcc{{&br.false_}};
     },
     [&](jump_t jump) {
-      *this << jmp{jump.target};
+      *this << jmp{&jump.target};
     },
     [&](return_statement_t &r) {
       gen(r.expr, intreg::rax);
+      ret_insert_add_sp_pos.emplace_back(insns.size());
       *this << add{"q"_s, {0, intreg::rsp}};
-      ret_insert_add_sp_pos.emplace_back(&(int &) ((add &) insns.back()).ops[0]);
-      *this << ret{};
+      *this << pop{"q"_s, {intreg::rbp}} << ret{};
     }
   });
 }

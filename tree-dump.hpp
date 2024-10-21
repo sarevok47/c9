@@ -80,12 +80,12 @@ struct dumper {
     if constexpr(__is_same(decltype(tree), tree::compound_statement_t &))
       for(auto stmt : tree)  (*this)(stmt);
 #define FIELD_NAME(name) if constexpr(requires { tree.name; }) ++ntab,print(#name ": {}", tree.name), --ntab;
-    FIELD_NAME(name) FIELD_NAME(size)
+    FIELD_NAME(name) FIELD_NAME(size) FIELD_NAME(is_global)
 
 #define FIELD(f) if constexpr(requires { tree.f; }) (*this)(tree.f);
     FIELD(expr) FIELD(cond)  FIELD(declref) FIELD(lhs) FIELD(rhs) FIELD(member)
     FIELD(value) FIELD(sym)  FIELD(type) FIELD(init) FIELD(if_stmt) FIELD(else_stmt) FIELD(stmt) FIELD(return_type)
-    FIELD(cast_from) FIELD(cast_to) FIELD(definition)
+    FIELD(cast_from) FIELD(cast_to) FIELD(definition) FIELD(undecay)
 #undef FIELD
   }
 

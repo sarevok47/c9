@@ -13,6 +13,7 @@ struct live_interval {
   bool reload{};
 
   bool operator==(live_interval li) { return op == li.op; }
+  bool operator==(tree::op op) { return this->op == op; }
   bool operator<(live_interval li) const {
      if (start == li.start)
       return finish < li.finish;
@@ -24,17 +25,34 @@ class register_allocator {
   flat_set<regalloc::live_interval> intervals;
   std::vector<live_interval> active;
 
+  void insert_reg_args(auto pred) {
+    for(cfg::basic_block *bb = &cfg.entry; bb; bb = bb->step())
+      for(auto insn : bb->insns | iter_range)
+        if(auto mov = (tree::mov) *insn)
+          if(auto funcall = (tree::function_call) mov->src) {
+            std::vector<tree::statement> insns{tree::mov{{.dst = ret_reg->first}}};
+            size_t i = 0;
+            for(auto arg : funcall->args)
+              if(pred(strip_type(arg->type)) && i < call_regs.size()) {
+                tree::op op = call_regs[i]->first.cpy(); op->type = strip_type(arg->type);
+                insns.emplace_back(tree::mov{{.src = arg, .dst = op}});
+                ++i;
+              }
+
+            insns.emplace_back(mov);
+            *insn = tree::compound_statement_t{{}, c9::mov(insns)};
+          }
+  }
   void compute_interval(cfg::basic_block *bb, tree::op def);
   void compute_intervals(auto pred) {
     for(auto def : cfg.vars.map<tree::variable_t>())
-      if(pred(def->type)) compute_interval(&cfg.entry, def);
+      compute_interval(&cfg.entry, def);
     for(cfg::basic_block *bb = &cfg.entry; bb; bb = bb->step()) {
       for(auto def : bb->def.map<tree::ssa_variable_t>())
         if(pred(def->type)) compute_interval(bb, def);
       for(auto def : bb->def.map<tree::temporary_t>())
         if(pred(def->type)) compute_interval(bb, def);
     }
-
     #if 0
     for(auto interval : intervals) {
       fprint(stderr, "interval: '");
@@ -44,7 +62,7 @@ class register_allocator {
   #endif
   }
   std::pair<tree::target_op, bool> *next_reg();
-  void get_spill_reg_for_call(std::pair<tree::target_op, bool> *reg, size_t insn_pos, std::list<tree::statement>::iterator insn, tree::op dst);
+  void get_spill_reg_for_call(std::pair<tree::target_op, bool> *reg, size_t insn_pos, tree::op arg, std::list<tree::statement>::iterator insn, tree::op dst);
   void reload(live_interval li, size_t insn_pos, std::list<tree::statement>::iterator insn);
   void process_interval(live_interval li);
   void next_interval(live_interval &i);
@@ -56,9 +74,11 @@ public:
   std::pair<tree::target_op, bool> * ret_reg;
   bool spill_ret{};
   size_t spill_sofs = -1;
+
   cfg::control_flow_graph &cfg;
 
   void operator()(auto pred) {
+    insert_reg_args(pred);
     compute_intervals([pred](tree::type_decl type) { return pred(strip_type(type)); });
     for(auto i : intervals) next_interval(i);
 
