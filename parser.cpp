@@ -413,7 +413,7 @@ bool parser::struct_or_union_specifier(tree::type_decl &td) {
       td = node.union_decl;
     }
     if(*this <= "{"_s) {
-      tree::record_decl_t s{};
+      tree::record_decl_t s{.is_struct = is_struct};
       while(peek_token() && peek_token() != "}"_s) {
         decl_specifier_seq dss;
         declspec(dss);
@@ -426,13 +426,8 @@ bool parser::struct_or_union_specifier(tree::type_decl &td) {
           std::vector<tree::attribute> attrs;
           auto type = declarator(id, dss.type, attrs);
 
-          type->type(overload {
-            [&](tree::function_type_t &) {
-              error(peek_token().loc, {}, "cannot declarate function within structure");
-            },
-            [&](auto &) { s.fields.push_back({{id.name, type, mov(attrs)}}); }
-          });
-
+          if(id.name.size() || tree::is_empty_struct_dector(id.name, type))
+            append_record_member(peek_token().loc, s, id.name, type, attrs);
           if(id.name.empty()) break;
         } while(*this <= ","_s);
 

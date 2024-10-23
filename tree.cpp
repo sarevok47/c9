@@ -62,6 +62,11 @@ bool is_incomplete_type(type_decl type) {
     [](auto &) { return false; }
   });
 }
+bool is_empty_struct_dector(string name, tree::type_decl type) {
+  return name.empty()
+    && tree::structural_decl(strip_type(type))
+    && tree::structural_decl(strip_type(type))->name.empty();
+}
 type_decl promote(type_decl type) {
   return type(overload {
     [](narrow<integer_type_t> auto &type) -> type_decl { return promote_int(type); },

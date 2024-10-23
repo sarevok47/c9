@@ -192,6 +192,7 @@ struct semantics {
            name, std::format(fmt, (decltype(args)) args...));
   }
 
+  void append_record_member(source_range loc, tree::record_decl_t &rd, string name, tree::type_decl type, std::vector<tree::attribute> &attrs);
   void process_record_decl(tree::record_decl_t &rd, bool is_struct, size_t &size, size_t &align);
 
   tree::cast_expression build_cast_expression(source_range sr, tree::expression expr, tree::type_decl type);

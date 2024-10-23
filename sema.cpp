@@ -126,20 +126,42 @@ tree::decl semantics::build_decl(rich_location rl, id id, tree::type_name type, 
     decl = tree::variable{{id.name,  type->type, id.is_global_scope(), scs_assign(decltype(tree::variable_t::scs){}, scs) }};
   return decl;
 }
-
+void semantics::append_record_member(source_range loc, tree::record_decl_t &rd, string name, tree::type_decl type, std::vector<tree::attribute> &attrs) {
+  auto append = [&](string name, tree::type_decl type, auto attrs, bool struct_field) {
+    if(std::ranges::any_of(rd.fields, [&](auto record) { return record->name == name; }))
+      d.diag(loc, "error"_s, "cannot declaration of field {}", name);
+    else {
+      tree::record_member r{{name, type, mov(attrs)}};
+      r.struct_field = struct_field;
+      rd.fields.push_back(mov(r));
+    }
+  };
+  auto t = strip_type(type);
+  if((tree::function_type) t)
+    return d.diag(loc, "error"_s, "cannot declarate function within record definition");
+  else if(is_empty_struct_dector(name, t))
+    for(auto field : tree::structural_decl(t)->definition->fields)
+      append(field->name, field->type, mov(field->attrs), field.struct_field);
+  else
+    append(name, type, mov(attrs), rd.is_struct);
+}
 void semantics::process_record_decl(tree::record_decl_t &rd, bool is_struct, size_t &size, size_t &align){
   size_t max{};
   for(auto field : rd.fields) max = std::max(field->type->align, max);
   align = max;
-  if(size_t offset_i = 0; is_struct) {
-    for(auto field : rd.fields | iter_range) {
-      field->offset = offset_i;
+  size_t offset_i = 0;
+  for(auto field : rd.fields | iter_range) {
+    field->offset = offset_i;
+    if(field->struct_field || (field + 1 != rd.fields.end() && field[1].struct_field)) {
       offset_i += (*field)->type->size;
-      if(field + 1 != rd.fields.end() && field[1]->type->align > (*field)->type->align)
-        offset_i += field[1]->type->align - (*field)->type->align;
+      if(field + 1 != rd.fields.end()
+          && (offset_i < field[1]->type->align
+              || offset_i - field[1]->type->align < field[1]->type->align))
+        offset_i = (offset_i + field[1]->type->align - 1) & ~(field[1]->type->align - 1);;// field[1]->type->align - (*field)->type->align;
     }
-    size = offset_i ? (offset_i + align - 1) & ~(align - 1) : 1;
-  } else size = max;
+  }
+
+  size = offset_i;
 }
 
 } }

@@ -44,17 +44,19 @@ void function_codegen::gen(cfg::basic_block &entry) {
       [&](narrow<tree::pointer_t>      auto &type) { store_param(int_, intreg::rax, p(param), get_type(type)); },
       [&](narrow<tree::integer_type_t> auto &type) { store_param(int_, intreg::rax, p(param), get_type(type)); },
       [&](narrow<tree::structural_decl_t> auto &struct_) {
-        if(struct_.size <= 16) {
-          auto op = p(param);
-
+        if(!param.op)
+          param_sp += struct_.size;
+        else if(struct_.size <= 16) {
+          auto op = (memop) p(param);
           struct_.definition->for_each([&](tree::record_member field) {
             auto type = strip_type(field->type);
             if((tree::floating_type) type)
               store_param(xmm, xmmreg::xmm0, op, get_type(type));
             else
               store_param(int_, intreg::rax, op, get_type(type));
+            op.offset += type->align;
+            param_sp  += type->align;
           });
-
         } else {
           local_vars[param.op] = param_sp += 8;
           param_sp += struct_.size;
@@ -70,8 +72,8 @@ void function_codegen::gen(cfg::basic_block &entry) {
     for(auto insn : bb->insns) gen(insn);
   }
 
-  ((sub &) insns[sub_sp]).ops[0] = -sp;
-  for(auto add : ret_insert_add_sp_pos) ((x86::add &) insns[add]).ops[0] = -sp;
+  ((sub &) insns[sub_sp]).ops[0] = -sp + 8;
+  for(auto add : ret_insert_add_sp_pos) ((x86::add &) insns[add]).ops[0] = -sp + 8;
 }
 
 void function_codegen::dump(FILE *out) {
@@ -157,8 +159,8 @@ void function_codegen::gen(tree::expression expr, op dst) {
       std::pair xmm{xmm_call_conv_sysv.begin(), xmm_call_conv_sysv.end()};
       for(auto arg : fcall.args) {
         auto store_arg = [&](auto &pair, op op, auto type) {
-          if(pair.first != pair.second) ++pair.first;
-          else *this << mov{type, {op, memop{intreg::rbp, sp}}}, sp -= 8;
+          if(pair.first != pair.second)  *this << mov{type, {op, *pair.first++}};
+          else *this << mov{type, {op, memop{intreg::rbp, sp -= 8}}}, sp;
         };
         strip_type(arg->type)(overload {
           [](auto &) {},
@@ -168,25 +170,24 @@ void function_codegen::gen(tree::expression expr, op dst) {
              [&](narrow<tree::pointer_t>      auto &type) { store_arg(int_, gen(tree::op(arg)), get_type(arg->type)); },
              [&](narrow<tree::integer_type_t> auto &type) { store_arg(int_, gen(tree::op(arg)), get_type(arg->type)); },
              [&](narrow<tree::structural_decl_t> auto &struct_) {
-                auto op = (memop) {}; //gen(tree::op(arg))
-               if(struct_.size <= 16) {
-                 struct_.definition->for_each([&](tree::record_member field) {
-                   auto type = strip_type(field->type);
-                   if((tree::floating_type) type) {
-                     *this << mov{get_type(type), {op,xmmreg::xmm0}};
-                     store_arg(xmm, xmmreg::xmm0, get_type(type));
-                   } else {
-                     *this << mov{get_type(type), {op, intreg::rax}};
-                     store_arg(int_, intreg::rax, get_type(type));
-                   }
-                 });
-               } else {
-                 for(size_t i{}; i <= struct_.size; op.offset += 8, i += 8) {
-                   auto type = struct_.size - i < 8 ? get_int_type(struct_.size - i) : data_type("q"_s);
-                   *this << mov{type, {op, intreg::rax}};
-                   *this << mov{type, {intreg::rax, memop{intreg::rbp, sp}}}, sp -= 8;
-                 }
-               }
+                auto op = (memop) gen(tree::op(arg));
+
+                auto type = strip_type(arg->type);
+                if(type->size <= 16) {
+                  has_xmmnum_0(type)
+                    ? store_arg(xmm, op, type->size > 4 ? data_type{"sd"_s} : data_type{"ss"_s})
+                    : store_arg(int_, op, type->size > 8 ? data_type{"q"_s} : get_int_type(type->size));
+                  if(type->size > 8)
+                    op.offset += size(get_type(type)) - 8,
+                    has_xmmnum_1(type)
+                      ? store_arg(xmm, op, get_int_type(type->size - 8))
+                      : store_arg(int_, op, get_int_type(type->size - 8));
+                } else
+                  for(size_t i{}; i <= struct_.size; op.offset += 8, i += 8) {
+                    auto type = struct_.size - i < 8 ? get_int_type(struct_.size - i) : data_type("q"_s);
+                    *this << mov{type, {op, intreg::rax}};
+                    *this << mov{type, {intreg::rax, memop{intreg::rbp, sp}}}, sp -= 8;
+                  }
              }
         });
       }

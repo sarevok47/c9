@@ -3,6 +3,7 @@
 
 #include "cfg.hpp"
 #include "variant.hpp"
+#include "driver.hpp"
 
 namespace c9 { namespace regalloc {
 struct live_interval {
@@ -31,14 +32,9 @@ class register_allocator {
         if(auto mov = (tree::mov) *insn)
           if(auto funcall = (tree::function_call) mov->src) {
             std::vector<tree::statement> insns{tree::mov{{.dst = ret_reg->first}}};
-            size_t i = 0;
-            for(auto arg : funcall->args)
-              if(pred(strip_type(arg->type)) && i < call_regs.size()) {
-                tree::op op = call_regs[i]->first.cpy(); op->type = strip_type(arg->type);
-                insns.emplace_back(tree::mov{{.src = arg, .dst = op}});
-                ++i;
-              }
-
+            size_t a = cfg.d.t.mark_arg_regs(call_regs.size(), tab[0].first->data[0_c].is<x86::xmmreg>(), funcall);
+            for(auto p = call_regs.begin(); p != call_regs.begin() + a; ++p)
+              insns.emplace_back(tree::mov{{.dst = (*p)->first}});
             insns.emplace_back(mov);
             *insn = tree::compound_statement_t{{}, c9::mov(insns)};
           }
@@ -62,7 +58,6 @@ class register_allocator {
   #endif
   }
   std::pair<tree::target_op, bool> *next_reg();
-  void get_spill_reg_for_call(std::pair<tree::target_op, bool> *reg, size_t insn_pos, tree::op arg, std::list<tree::statement>::iterator insn, tree::op dst);
   void reload(live_interval li, size_t insn_pos, std::list<tree::statement>::iterator insn);
   void process_interval(live_interval li);
   void next_interval(live_interval &i);

@@ -12,6 +12,7 @@ struct target {
 
   sv predefined_macro;
 
+  virtual size_t mark_arg_regs(size_t regnum, bool xmm, tree::function_call fcall)  = 0;
   virtual tree::pointer make_ptr(tree::type_decl type) = 0;
 };
 }

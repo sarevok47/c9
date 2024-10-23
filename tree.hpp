@@ -258,8 +258,9 @@ TREE_DEF(decl_expression, : lvalue_t {
   decl declref;
   type_decl undecay;
 });
-struct record_member : variable { using variable::variable; size_t offset; };
+struct record_member : variable { using variable::variable; size_t offset; bool struct_field{}; };
 TREE_DEF(record_decl, : base_t {
+  bool is_struct{};
   std::vector<record_member> fields;
 
   record_member find(string name);
@@ -499,26 +500,24 @@ template<class T_t> template<narrow<T_t> U> tree_value<T_t>::operator tree_value
   return r;
 }
 inline type_name_t::type_name_t(type_decl type) : type{type} { this->size = type->size; this->align = type->size; }
-
+type_decl strip_type(tree::type_decl type);
 inline record_member record_decl_t::find(string name) {
   c9_assert(name.size());
   record_member r;
   for(auto field : fields) {
-    if(field->name.empty())
-      field(overload {
-        [&](auto &) {},
-        [&](narrow<structural_decl_t> auto &tree) { r = tree.def.find(name); }
-      });
-    else if(field->name == name) r = field;
-
+    strip_type(field->type)(overload {
+      [&](auto &) { if(field->name == name) r = field; },
+      [&](narrow<structural_decl_t> auto &tree) { r = tree.definition->find(name); }
+    });
     if(r) break;
   }
+
   return r;
 }
 
 inline void record_decl_t::for_each(auto &&f) {
   for(auto field : fields)
-    field(overload {
+    strip_type(field->type)(overload {
       [&](auto &) { f(field); },
       [&](narrow<structural_decl_t> auto &tree) { tree.definition->for_each(f); }
     });

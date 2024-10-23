@@ -228,11 +228,47 @@ public:
 };
 }
 
-
+static bool has_xmmnum(tree::type_decl t, size_t low, size_t high, size_t offset) {
+  auto type = strip_type(t);
+  bool m = true;
+  if(auto s = (tree::structural_decl) type)
+    s->definition->for_each([&](tree::record_member record_member) {
+      if(!has_xmmnum(record_member->type, low, high, offset + record_member.offset))
+        m = false;
+    });
+  else if(auto arr = (tree::array) type) {
+    for(size_t i = 0; i != arr->size; i += arr->type->size)
+      if(!has_xmmnum(arr->type, low, high, i))
+        m = false;
+  } else
+    m = offset < low || offset >= high || (tree::float_type) type || (tree::double_type) type;
+  return m;
+}
+static bool has_xmmnum_0(tree::type_decl ty) {
+  return has_xmmnum(ty, 0, 8, 0);
+}
+static bool has_xmmnum_1(tree::type_decl ty) {
+  return has_xmmnum(ty, 8, 16, 0);
+}
 
 struct x86_target : target {
   tree::pointer make_ptr(tree::type_decl type) override { return {{type, 8}};  }
 
+  size_t mark_arg_regs(size_t regnum, bool xmm, tree::function_call fcall) override {
+    size_t i = 0;
+    auto f = [&](auto &&f, tree::type_decl type) -> void {
+      type = strip_type(type);
+      if(auto s = (tree::structural_decl) type; s && s->size <= 16) {
+        bool xmm_0 = has_xmmnum_0(type), xmm_1 = has_xmmnum_1(type);
+        if(i + xmm_0 + xmm_1 != regnum || (!xmm && i + !xmm_0 + !xmm_1 != regnum))
+          i += xmm ? xmm_0 + xmm_1 : !xmm_0 + !xmm_1;
+      } else if((!xmm || !(tree::floating_type) type))
+        ++i;
+    };
+    for(auto arg : fcall->args) f(f, arg->type);
+
+    return i;
+  }
   x86_target()  {
     ptrdiff_type_node = tree::long_type_node;
     size_type_node = tree::unsigned_long_type_node;

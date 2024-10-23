@@ -22,6 +22,7 @@ type_decl strip_type(tree::type_decl type);
 bool operator==(type_decl lhs, type_decl rhs);
 static bool operator==(variable lhs, variable rhs) { return lhs.get_data() == rhs.get_data(); }
 bool is_incomplete_type(type_decl type);
+bool is_empty_struct_dector(string name, tree::type_decl type);
 /* integer promotions are applied only:
  * as part of usual arithmetic conversions (tree-trait.hpp::usual_arith_conv)
  * as part of default argument promotions

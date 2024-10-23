@@ -48,31 +48,6 @@ template<class ...T> void process_trees(tree::base tree, auto &&f) {
   }
 }
 
-void register_allocator::get_spill_reg_for_call(std::pair<tree::target_op, bool> *reg, size_t insn_pos, tree::op arg, std::list<tree::statement>::iterator insn, tree::op dst) {
-  while(active.size()) {
-    for(auto p : active | iter_range)
-      if(p->finish < insn_pos) {
-        auto li = *p;
-        active.erase(p);
-        process_interval(li);
-        free_reg(li.reg);
-        goto repeat;
-      } else if(p->reg == reg && p->start < insn_pos && p->op != dst) {
-        if(arg && arg == p->op) return;
-        tree::compound_statement_t compound = {{}, std::vector<tree::statement>{
-          tree::spill_statement{{.reg = p->reg->first, .op = p->op, }},
-          *insn,
-          tree::reload{{.reg = p->reg->first, .op = p->op,}},
-        }};
-        *insn = compound;
-        return;
-      }
-
-
-    break;
-    repeat:
-  }
-}
 void register_allocator::reload(live_interval li, size_t insn_pos, std::list<tree::statement>::iterator insn) {
   if(auto mov = comp_exp_cast<tree::mov>(*insn))
     if(auto addr = (tree::addressof) mov->src)
@@ -87,7 +62,9 @@ void register_allocator::reload(live_interval li, size_t insn_pos, std::list<tre
     process_trees<tree::mov, tree::load_addr>(*insn, overload {
       [&](tree::mov mov) {
         if(mov->dst == li.op) dst = true, mov->dst = reg;
-        process_ops(mov->src);
+        // don't reload into parameter, codegen gonna do it by himself
+        if(!(tree::function_call) mov->src || !(tree::structural_decl) li.op->type)
+          process_ops(mov->src);
       },
       [&](tree::load_addr load_addr) { process_ops(load_addr->src); },
       [&](auto) { process_ops(*insn); }
@@ -136,15 +113,6 @@ void register_allocator::process_interval(live_interval li) {
 
   for(cfg::basic_block *bb = li.entry; bb; bb = bb->step()) {;
     for(auto insn : bb->insns | iter_range) {
-#if 0
-      if(auto mov = comp_exp_cast<tree::mov>(*insn))
-        if(auto funcall = (tree::function_call) mov->src) {
-          if(spill_ret) get_spill_reg_for_call(ret_reg, insn_cnt, {}, insn, mov->dst);
-          //for(size_t i = 0; i != funcall->args.size() && i < std::size(call_regs); ++i)
-            //get_spill_reg_for_call(call_regs[i], insn_cnt, (tree::op) funcall->args[i], insn, mov->dst);
-        }
-#endif
-
       cfg::visit_ops(*insn, [&](auto &op) {
         if(tree::op(op) == reg) li.spill_pos = insn_cnt;
       });
