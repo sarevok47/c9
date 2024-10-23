@@ -76,7 +76,7 @@ void tree_dump(FILE *out, tree::statement tree);
 struct basic_block {
   class control_flow_graph &cfg;
   size_t i{};
-  std::list<tree::statement> insns;
+  std::vector<tree::statement> insns;
 size_t insn_pos{};
   std::set<basic_block *> preds, succs;
   flat_map<tree::variable, std::pair<tree::phi, tree::ssa_variable>> phis;

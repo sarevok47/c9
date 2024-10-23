@@ -58,7 +58,7 @@ class register_allocator {
   #endif
   }
   std::pair<tree::target_op, bool> *next_reg();
-  void reload(live_interval li, size_t insn_pos, std::list<tree::statement>::iterator insn);
+  void reload(live_interval li, size_t insn_pos, decltype(cfg::basic_block::insns)::iterator insn);
   void process_interval(live_interval li);
   void next_interval(live_interval &i);
 

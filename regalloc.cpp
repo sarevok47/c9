@@ -48,7 +48,7 @@ template<class ...T> void process_trees(tree::base tree, auto &&f) {
   }
 }
 
-void register_allocator::reload(live_interval li, size_t insn_pos, std::list<tree::statement>::iterator insn) {
+void register_allocator::reload(live_interval li, size_t insn_pos, decltype(cfg::basic_block::insns)::iterator insn) {
   if(auto mov = comp_exp_cast<tree::mov>(*insn))
     if(auto addr = (tree::addressof) mov->src)
       return;
