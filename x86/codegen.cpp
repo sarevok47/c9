@@ -124,7 +124,7 @@ op function_codegen::gen(tree::op operand) {
 }
 void function_codegen::gen(tree::expression expr, op dst) {
   expr(overload {
-    [](auto &) {},
+    [](auto &) { },
     [&](narrow<tree::op_t> auto &op) {
       *this << mov{ get_type(op.type), {gen(tree::op(expr)), dst} };
     },

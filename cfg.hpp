@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <set>
+#include <stack>
 #include <list>
 #include "tree.hpp"
 #include "tree-trait.hpp"
@@ -143,6 +144,7 @@ class control_flow_graph {public:
   tree::function function;
 
   std::vector<param> &params;
+  std::stack<std::vector<basic_block *>> breaks, continues;
 
   tree::op make_tmp(tree::type_decl type) {
     tree::temporary_t tmp{.idx = ntmp++};

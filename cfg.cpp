@@ -193,6 +193,7 @@ void control_flow_graph::construct(tree::statement stmt) {
       if_start->dominator = else_start->dominator = last_bb->dominator = pre_if;
     },
     [&](tree::for_statement_t &for_) {
+      breaks.emplace(); continues.emplace();
       basic_block *cond_bb, *loop_body, *loop_finish;
       tree::op cond;
 
@@ -202,8 +203,20 @@ void control_flow_graph::construct(tree::statement stmt) {
             >> cond_bb->br(cond, *loop_body, add_bb(cond_bb));
 
       cond_bb->add_pred(loop_finish);
+      for(auto break_ : breaks.top()) {
+        if(break_->insns.size() && (tree::jump) break_->insns.back()) break_->insns.pop_back();
+        break_->jump(*last_bb);
+        last_bb->add_pred(break_);
+      }
+      for(auto continue_ : continues.top()) {
+        if(continue_->insns.size() && (tree::jump) continue_->insns.back()) continue_->insns.pop_back();
+        continue_->jump(*cond_bb);
+        cond_bb->add_pred(continue_);
+      }
+      breaks.pop(); continues.pop();
     },
     [&](tree::while_statement_t &while_) {
+      breaks.emplace(); continues.emplace();
       basic_block *cond_bb, *loop_body, *loop_finish;
       tree::op cond;
 
@@ -213,8 +226,20 @@ void control_flow_graph::construct(tree::statement stmt) {
             >> cond_bb->br(cond, *loop_body, add_bb(cond_bb));
 
       cond_bb->add_pred(last_bb);
+      for(auto break_ : breaks.top()) {
+        if(break_->insns.size() && (tree::jump) break_->insns.back()) break_->insns.pop_back();
+        break_->jump(*last_bb);
+        last_bb->add_pred(break_);
+      }
+      for(auto continue_ : continues.top()) {
+        if(continue_->insns.size() && (tree::jump) continue_->insns.back()) continue_->insns.pop_back();
+        continue_->jump(*cond_bb);
+        cond_bb->add_pred(continue_);
+      }
+      breaks.pop(); continues.pop();
     },
     [&](tree::do_while_statement_t &while_) {
+      breaks.emplace(); continues.emplace();
       basic_block *loop_body;
       tree::op cond;
 
@@ -222,7 +247,20 @@ void control_flow_graph::construct(tree::statement stmt) {
             >> while_.cond >> cond >> last_bb->br(cond, *loop_body, add_bb(last_bb));
 
       loop_body->add_pred(last_bb);
+      for(auto break_ : breaks.top()) {
+        if(break_->insns.size() && (tree::jump) break_->insns.back()) break_->insns.pop_back();
+        break_->jump(*last_bb);
+        last_bb->add_pred(break_);
+      }
+      for(auto continue_ : continues.top()) {
+        if(continue_->insns.size() && (tree::jump) continue_->insns.back()) continue_->insns.pop_back();
+        continue_->jump(*loop_body);
+        loop_body->add_pred(continue_);
+      }
+      breaks.pop(); continues.pop();
     },
+    [&](tree::break_statement_t)    { breaks   .top().emplace_back(last_bb); add_bb(last_bb); },
+    [&](tree::continue_statement_t) { continues.top().emplace_back(last_bb); add_bb(last_bb); },
     [&](tree::return_statement_t &ret) {
       ret.expr = construct(ret.expr);
       last_bb->add_insn(stmt);
