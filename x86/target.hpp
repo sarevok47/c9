@@ -220,7 +220,7 @@ public:
     for(auto &[codegen, fun] : section_text)
       if(codegen) {
         fprintln(out, "{}:", fun->name);
-        for(auto insn : codegen->insns) dump_insn(out, insn);
+        codegen->dump(stderr);
       }
   }
 

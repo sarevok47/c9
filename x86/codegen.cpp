@@ -79,7 +79,7 @@ void function_codegen::gen(cfg::basic_block &entry) {
 void function_codegen::dump(FILE *out) {
   auto l = label_list.begin();
   for(size_t i = 0; i != insns.size(); ++i) {
-    if(i == l->first)
+    while(i == l->first)
       fprintln(out, ".bb_{}:", (l++)->second);
     dump_insn(out, insns[i]);
   }
