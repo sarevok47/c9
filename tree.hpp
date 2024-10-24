@@ -385,6 +385,25 @@ TREE_DEF(float_cst_expression, : rvalue_t {
 });
 TREE_DEF(string_cst_expression, : rvalue_t {
   string value, sym;
+
+  void print_to(FILE *out) {
+    for(char c : value)
+      if(isprint(c)) fputc(c, out);
+      else
+        switch(c) {
+          case '\n': fprint(out, "\\n");  break;
+          case '\t': fprint(out, "\\t");  break;
+          case '\r': fprint(out, "\\r");  break;
+          case '\b': fprint(out, "\\b");  break;
+          case '\f': fprint(out, "\\f");  break;
+          case '\a': fprint(out, "\\a");  break;
+          case '\\': fprint(out, "\\\\"); break;
+          case '\"': fprint(out, "\\");   break;
+          case '\'': fprint(out, "\\'");  break;
+          default:   fprint(out, "\\{:o}", c);  break;
+        }
+  }
+
   string_cst_expression_t(string value, pointer type, source_range loc, size_t n)
     : value{value}, rvalue_t{{.loc = loc}} {
       this->type = type;

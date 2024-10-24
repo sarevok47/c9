@@ -109,6 +109,7 @@ static string interpret_string(string_literal sl, interpret_status &is) {
     } else
       *dst = *src++;
   }
+  r.value.resize(dst - r.value.begin().base());
   return r;
 }
 /*

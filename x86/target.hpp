@@ -3,10 +3,12 @@
 #include "../target.hpp"
 #include "isa.hpp"
 #include "cfg.hpp"
+#include "sema.hpp"
 #include "variant.hpp"
 #include "regalloc.hpp"
 #include "tree-opt.hpp"
 #include "regalloc.hpp"
+
 
 namespace c9 {
 namespace x86 {
@@ -168,6 +170,7 @@ class codegen {
   std::vector<std::pair<opt<function_codegen>, tree::function>> section_text;
 public:
   driver &d;
+  sema::semantics &sema;
   void gen_var(tree::variable_t &var) {
 
   }
@@ -214,6 +217,14 @@ public:
     for(auto var : section_data) if(var->is_global) fprintln(out, ".global {}", var->name);
     for(auto var : section_data) fprintln(out, "{}:\n\t.zero {}",  var->name, var->type->size);
 
+
+
+    for(auto str : sema.string_tab) {
+      fprint(out, "{}:\n\t.string \"", str.second->sym);
+      str.second->print_to(out);
+      fprintln(out, "\"");
+    }
+
     fprintln(out, ".section .text");
     for(auto &[_, fun] : section_text)
       if(fun->scs != "static"_s) fprintln(out, ".global {}", fun->name);
@@ -224,7 +235,7 @@ public:
       }
   }
 
-  codegen(driver &d) : d{d} {}
+  codegen(driver &d, sema::semantics &sema) : d{d}, sema{sema} {}
 };
 }
 

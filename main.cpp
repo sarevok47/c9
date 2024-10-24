@@ -125,7 +125,7 @@ int main(int argc, char **argv) {
 
   parse::parser parser{d, pp};
 
-  x86::codegen codegen{d};
+  x86::codegen codegen{d, parser};
   for(;;) {
     while(parser.peek_token() == ";"_s)
       parser.consume();
