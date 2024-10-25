@@ -183,8 +183,8 @@ struct semantics {
       return build_cast_expression(expr->loc, expr, tree::int_type_node);
     return expr;
   }
-  opt<size_t> build_idx_expression(tree::expression expr) {
-    opt<size_t> r;
+  opt<__uint128_t> build_idx_expression(tree::expression expr) {
+    opt<__uint128_t> r;
     sv err;
     if(auto cst = tree::tree_fold(expr, err)) {
       if(cst->data.is<long double>())
@@ -195,8 +195,19 @@ struct semantics {
       d.diag(expr->loc, "error"_s, "{}", err);
     return r;
   }
-  opt<size_t> try_build_idx_expression(tree::expression expr) {
-    opt<size_t> r;
+  tree::cst build_tree_idx_expression(tree::expression expr) {
+    sv err;
+    if(auto cst = tree::tree_fold(expr, err)) {
+      if(cst->data.is<long double>())
+        d.diag(expr->loc, "error"_s, "integral constant is missed");
+      else
+        return cst;
+    } else
+      d.diag(expr->loc, "error"_s, "{}", err);
+    return {};
+  }
+  opt<__uint128_t> try_build_idx_expression(tree::expression expr) {
+    opt<__uint128_t> r;
     sv err;
     if(auto cst = tree::tree_fold(expr, err)) {
       if(cst->data.is<long double>())

@@ -191,7 +191,7 @@ void control_flow_graph::construct(tree::statement stmt) {
             >> add_bb(pre_if) >> else_start  >> if_.else_stmt >> else_end
             >> add_bb(if_end, else_end)
             >> if_start->jump(*last_bb)
-            >> pre_if->br    (cond, *if_start, *else_start);
+            >> pre_if->br    (cond,  *if_start, *else_start);
       if_start->dominator = else_start->dominator = last_bb->dominator = pre_if;
     },
     [&](tree::for_statement_t &for_) {
@@ -202,7 +202,7 @@ void control_flow_graph::construct(tree::statement stmt) {
       cfg() >> for_.clause     >> add_bb(last_bb) >> cond_bb << for_.cond >> cond
             >> add_bb(last_bb) >> loop_body >> for_.body >> for_.step >> loop_finish
             >> loop_finish->jump(*cond_bb)
-            >> cond_bb->br(cond, *loop_body, add_bb(cond_bb));
+            >> cond_bb->br(cond,  *loop_body, add_bb(cond_bb));
 
       cond_bb->add_pred(loop_finish);
       for(auto break_ : breaks.top()) {
@@ -225,7 +225,7 @@ void control_flow_graph::construct(tree::statement stmt) {
       cfg() >> add_bb(last_bb) >> cond_bb << while_.cond >> cond
             >> add_bb(last_bb) >> loop_body >> while_.body
             >> last_bb->jump(*cond_bb)
-            >> cond_bb->br(cond, *loop_body, add_bb(cond_bb));
+            >> cond_bb->br(cond,  *loop_body, add_bb(cond_bb));
 
       cond_bb->add_pred(last_bb);
       for(auto break_ : breaks.top()) {
@@ -260,6 +260,25 @@ void control_flow_graph::construct(tree::statement stmt) {
         loop_body->add_pred(continue_);
       }
       breaks.pop(); continues.pop();
+    },
+    [&](tree::switch_statement_t &switch_) {
+      breaks.emplace();
+      tree::op cond;
+      switch_.cond = construct(switch_.cond);
+      last_bb->add_insn(stmt);
+      // basic blocks for jumps
+      // used in unswitch()
+      for(auto case_ : switch_.cases)
+        cfg() >> add_bb(last_bb);
+      for(auto case_ : switch_.cases)
+        cfg() >> add_bb(last_bb) >> case_->bb >> case_->stmt;
+
+      for(auto break_ : breaks.top()) {
+        if(break_->insns.size() && (tree::jump) break_->insns.back()) break_->insns.pop_back();
+        break_->jump(*last_bb);
+        last_bb->add_pred(break_);
+      }
+      breaks.pop();
     },
     [&](tree::break_statement_t)    { breaks   .top().emplace_back(last_bb); add_bb(last_bb); },
     [&](tree::continue_statement_t) { continues.top().emplace_back(last_bb); add_bb(last_bb); },
@@ -326,6 +345,22 @@ void control_flow_graph::convert_to_two_address_code() {
             *insn = i;
           }
         });
+      }
+  });
+}
+void control_flow_graph::unswitch() {
+  cfg_walker{entry}([&](basic_block &bb) {
+    for(auto insn : bb.insns | iter_range)
+      if(auto switch_ = (tree::switch_statement) *insn) {
+        auto bbp = bb.step();
+        for(auto case_ : switch_->cases) {
+          tree::binary_expression_t binexpr{.op = "-"_s, .lhs = switch_->cond, .rhs = case_->cond};
+          binexpr.type = tree::int_type_node;
+          auto tmp = bbp->add_assign(binexpr, make_tmp(tree::int_type_node));
+          bbp->br(tmp, *case_->bb, *bbp->step());
+          bbp = bbp->step();
+        }
+        *insn = tree::empty_node_t{};
       }
   });
 }

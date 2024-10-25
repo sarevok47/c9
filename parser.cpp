@@ -666,7 +666,7 @@ size_t parser::lhs_initializer_offset(tree::type_decl &type, bool &attempted) {
   size_t offset{};
 
   location_t loc = peek_token().loc;
-  if(opt<size_t> idx; *this <= "["_s && (idx = idx_constant_expression())) {
+  if(opt<__uint128_t> idx; *this <= "["_s && (idx = idx_constant_expression())) {
     *this <= "]"_req;
     if(!(tree::array) t) {
       error({loc, peek_token().loc}, "cannot use [idx] in non array initializer list");
@@ -973,7 +973,7 @@ tree::statement parser::statement() {
       return {};
     }
 
-    auto cond = conditional_expression();
+    auto cond = build_tree_idx_expression(conditional_expression());
     *this <= ":"_req;
 
     tree::case_statement case_{{ .cond = cond, .stmt = statement()}};

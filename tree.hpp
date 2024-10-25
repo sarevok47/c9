@@ -417,7 +417,7 @@ TREE_DEF(if_statement, : statement_t {
   statement if_stmt;
   statement else_stmt;
 });
-TREE_DEF(case_statement, : statement_t { expression cond; statement stmt; });
+TREE_DEF(case_statement, : statement_t { expression cond; statement stmt; cfg::basic_block *bb{}; });
 TREE_DEF(switch_statement, : statement_t {
   expression cond;
   statement stmt;

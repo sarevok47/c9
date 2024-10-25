@@ -199,6 +199,7 @@ public:
         c9::tree_opt::constprop(cfg);
         c9::tree_opt::cse(cfg);
         cfg.unssa();
+        cfg.unswitch();
         cfg.convert_to_two_address_code();
         cfg::cfg_walker walk{cfg.entry};
         bool int_ = bool((tree::integer_type) strip_type(fun.type));

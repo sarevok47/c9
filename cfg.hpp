@@ -178,6 +178,7 @@ class control_flow_graph {public:
   }
   void unssa();
   void convert_to_two_address_code();
+  void unswitch();
 
   void dump();
 };
@@ -190,6 +191,13 @@ void visit_ops(auto &insn, auto &&f) {
       if constexpr(requires { expr.cast_from; }) visit_ops(expr.cast_from, f);
       if constexpr(requires { expr.lhs; }) visit_ops(expr.lhs,  f);
       if constexpr(requires { expr.rhs; }) visit_ops(expr.rhs,  f);
+    },
+    [&](tree::switch_statement_t &switch_) {
+      visit_ops(switch_.cond, f);
+      for(auto &case_ : switch_.cases) {
+        visit_ops(case_->cond, f);
+        visit_ops(case_->stmt, f);
+      }
     },
     [&](tree::return_statement_t &ret) {
       visit_ops(ret.expr, f);

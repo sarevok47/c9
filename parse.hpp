@@ -157,8 +157,8 @@ struct parser : sema::semantics, lex_spirit {
   tree::statement statement();
 
   tree::expression bool_expression() { return build_bool_expression(expression()); }
-  opt<size_t> idx_constant_expression() {
-    opt<size_t> r;
+  opt<__uint128_t> idx_constant_expression() {
+    opt<__uint128_t> r;
     auto expr = expression();
     sv err;
     if(auto cst = tree::tree_fold(expr, err)) {

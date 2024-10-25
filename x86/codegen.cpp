@@ -244,7 +244,10 @@ void function_codegen::gen(tree::statement stmt) {
     },
     [&](br_t br) {
       *this << test{get_type(br.cond->type), {gen(br.cond), gen(br.cond)}};
-      *this << jcc{{&br.false_}};
+      jcc j;
+      if(br.true_.i > br.false_.i) j.target = &br.true_,  j.op = "e"_s;
+      else                         j.target = &br.false_, j.op = "ne"_s;
+      *this << j;
     },
     [&](jump_t jump) {
       *this << jmp{&jump.target};
