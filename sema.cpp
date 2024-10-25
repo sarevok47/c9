@@ -122,8 +122,13 @@ tree::decl semantics::build_decl(rich_location rl, id id, tree::type_name type, 
   id.node->decl_implicit = implicit;
   if(funtype)
     decl = tree::function{{id.name, funtype,  scs_assign(decltype(tree::function_t::scs){}, scs)}};
-  else
-    decl = tree::variable{{id.name,  type->type, id.is_global_scope(), scs_assign(decltype(tree::variable_t::scs){}, scs) }};
+  else {
+    tree::variable_t var{id.name,  type->type,
+                         id.is_global_scope(),
+                         scs_assign(decltype(tree::variable_t::scs){}, scs)};
+    if(var.scs == "static"_s) var.static_name = ".STATIC_"s + std::to_string(static_idx);
+    decl = var;
+  }
   return decl;
 }
 void semantics::append_record_member(source_range loc, tree::record_decl_t &rd, string name, tree::type_decl type, std::vector<tree::attribute> &attrs) {

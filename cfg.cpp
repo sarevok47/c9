@@ -268,6 +268,7 @@ void control_flow_graph::construct(tree::statement stmt) {
       last_bb->add_insn(stmt);
     },
     [&](tree::variable_t &var) {
+      if(var.scs == "static"_s) return;
       auto var_op = construct_var(tree::variable(stmt));
       if(auto init = (tree::initializer_list) var.definition)
         for(auto [offset, init] : *init)

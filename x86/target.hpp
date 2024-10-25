@@ -125,6 +125,16 @@ static size_t size(data_type dt) {
     [](decltype("sd"_s)) { return 8; },
   });
 }
+static sv get_alloc_type(data_type dt) {
+  return visit(dt, overload {
+    [](decltype("b"_s))  { return ".byte"; },  // Corresponds to 1 byte
+    [](decltype("w"_s))  { return ".word"; },  // Corresponds to 2 bytes
+    [](decltype("l"_s))  { return ".long"; },  // Corresponds to 4 bytes
+    [](decltype("q"_s))  { return ".quad"; },  // Corresponds to 8 bytes
+    [](decltype("ss"_s)) { return ".long"; },  // Assuming 'ss' maps to 4 bytes
+    [](decltype("sd"_s)) { return ".quad"; },  // Assuming 'sd' maps to 8 bytes
+  });
+}
 static data_type get_int_type(size_t size) {
   switch(size) {
     case 1: return "b"_s;
@@ -177,8 +187,9 @@ public:
   void operator()(tree::decl decl) {
     decl(overload {
       [](auto &) {},
-      [&](tree::variable_t &) {
-
+      [&](tree::variable_t &var) {
+        if(var.scs != "extern"_s)
+          section_data.emplace(tree::variable(decl));
       },
       [&](tree::function_t &fun) {
         std::vector<cfg::param> params(tree::function_type(fun.type)->params.size());
@@ -212,12 +223,40 @@ public:
     });
   }
 
+
+  void print_data(FILE *out, tree::type_decl type, tree::cst_t cst) {
+    visit(cst.data, overload {
+      [&](__uint128_t num) { fprintln(out, "\t{} {}", get_alloc_type(get_type(type)), num); },
+      [&](long double num) {
+        uint8_t bytes[sizeof(long double)];
+        std::memcpy(bytes, &num, sizeof(long double));
+        for(uint8_t byte : bytes)
+          fprintln(out, "\t.byte {}", byte);
+      }
+    });
+  }
+
   void print(FILE *out) {
     fprintln(out, ".section .data");
     for(auto var : section_data) if(var->is_global) fprintln(out, ".global {}", var->name);
-    for(auto var : section_data) fprintln(out, "{}:\n\t.zero {}",  var->name, var->type->size);
-
-
+    for(auto var : section_data) {
+      fprintln(out, "{}:", var->sym_name());
+      if(!var->definition)
+        fprintln(out, "\t.zero {}",   var->type->size);
+      else {
+        if(auto list = (tree::initializer_list) var->definition) {
+           size_t offset = 0;
+          for(auto [offset_1, init] : *list) {
+            if(offset_1 - offset)
+              fprintln(out, "\t.zero {}", offset_1 - offset);
+            offset = offset_1;
+            print_data(out, init->type, *tree::cst(init));
+          }
+          fprintln(out, "\t.zero {}", var->type->size - offset);
+        } else
+          print_data(out, var->type, *tree::cst(var->definition));
+      }
+    }
 
     for(auto str : sema.string_tab) {
       fprint(out, "{}:\n\t.string \"", str.second->sym);

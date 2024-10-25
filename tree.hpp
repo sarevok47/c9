@@ -241,6 +241,7 @@ TREE_DEF(variable, : decl_t, op_t {
   bool alias{};
   string static_name;
 
+  string sym_name() { return scs == "static"_s ? static_name : name; }
   variable_t(string name, type_decl type, bool is_global, auto scs, size_t param_idx = -1)
     : name{name}, op_t{{.type = type}}, is_global{is_global}, scs{scs}, param_idx{param_idx} {}
   variable_t(string name, type_decl type, std::vector<attribute> attrs) : name{name}, op_t{{.type = type}}, attrs{mov(attrs)} {}

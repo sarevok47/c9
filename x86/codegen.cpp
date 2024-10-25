@@ -102,7 +102,7 @@ op function_codegen::gen(tree::op operand) {
       return (x86::op) op.data;
     },
     [&](tree::variable_t &var) -> op {
-      return var.is_global ? memop{intreg::rip, 0, var.name} : ({
+      return var.is_global || var.scs == "static"_s ? memop{intreg::rip, 0, var.sym_name()} : ({
         auto &pos = local_vars[operand];
         if(!pos) pos = sp -= var.type->size;
         memop{intreg::rbp, (int) pos};
@@ -210,7 +210,7 @@ void function_codegen::gen(tree::statement stmt) {
     auto reg = gen(tree::op(insn.reg));
     memop memop;
     if(auto var = (tree::variable) insn.op; var && (var->is_global || var->scs == "static"_s))
-      memop = {intreg::rip, 0, var->name};
+      memop = {intreg::rip, 0, var->sym_name()};
     else {
       auto &pos = local_vars[insn.op];
       if(!pos) pos = sp -= insn.op->type->size;

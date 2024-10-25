@@ -79,6 +79,7 @@ struct semantics {
   driver &d;
   scope_manager<compound_scope, fn_scope, control_scope, switch_scope> scopes;
   std::unordered_map<string, tree::string_cst_expression, string::hash> string_tab;
+  size_t static_idx{};
 
 
   auto &global_scope() { return scopes.stack.front(); }
@@ -205,7 +206,13 @@ struct semantics {
     }
     return r;
   }
-
+  tree::cst build_constant_expression(tree::expression expr) {
+    sv err;
+    if(auto cst = tree::tree_fold(expr, err))
+      return cst;
+    d.diag(expr->loc, "error"_s, "{}", err);
+    return {};
+  }
 
   tree::string_cst_expression build_string(source_range loc, lex::string str);
   template<class ...T> void redecl_error(rich_location rl, string name, tree::decl &decl, std::format_string<T...> fmt, T&& ...args) {

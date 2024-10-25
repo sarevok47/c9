@@ -706,7 +706,7 @@ tree::initializer_list parser::initializer_list(tree::type_decl type) {
       offset = offset_1, *this <= "="_req;
 
     auto init = initializer(elt_type);
-    if(get_common_type(lex::assign_tok{"="_s}, init->loc, strip_type(elt_type), strip_type(init->type)))
+    if(init = build_cast_expression(init->loc, init, strip_type(elt_type)))
       init_list[offset] = init;
   }
   *this <= "}"_req;
@@ -767,8 +767,22 @@ tree::decl parser::init_decl(decl_specifier_seq &dss, bool tail) {
       }
       if(*this <= "="_s) {
         auto init = initializer(var.type);
-        if((tree::initializer_list) init || get_common_type(lex::assign_tok{"="_s}, init->loc, strip_type(var.type), strip_type(init->type)))
-          var.definition = init;
+
+        bool require_constant = dector_name.is_global_scope() || var.scs == "static"_s;
+        bool is_valid = true;
+        if(auto list = (tree::initializer_list) init) {
+          if(require_constant)
+            for(auto &[_, expr] : *list) {
+              expr = build_constant_expression(expr);
+              if(!expr) {
+                is_valid = false;
+                break;
+              }
+            }
+        } else if(!get_common_type(lex::assign_tok{"="_s}, init->loc, strip_type(var.type), strip_type(init->type))
+                  || (require_constant && !(init = build_constant_expression(init))))
+          is_valid = false;
+        if(is_valid) var.definition = init;
       }
       if(!tail)
         return !(*this <= ";"_s);
