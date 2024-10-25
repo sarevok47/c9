@@ -148,36 +148,41 @@ tree::expression parser::primary_expression() {
 }
 tree::expression parser::postfix_expression() {
   tree::expression primary = primary_expression();
-  location_t loc = peek_token().loc;
-  return visit(peek_token(), overload {
-    [&](auto &) { return primary; },
-               [&](decltype("["_s)) -> tree::expression {
-                 consume();
-                 tree::expression with = expression();
-                 *this <= "]"_req;
-                 return build_subscript_expression({loc, peek_token().loc}, primary, with);
-               },
-               [&](decltype("("_s)) -> tree::expression {
-                 consume();
-                 std::vector<tree::expression> args;
-                 if(peek_token() != ")"_s)
-                   do args.emplace_back(assignment_expression()); while(*this <= ","_s);
-                   *this <= ")"_req;
-                 return build_function_call({loc, peek_token().loc}, primary, mov(args));
-               },
-               [&]<char ...c>(string_seq<c...> s) -> tree::expression requires (s == "."_s || s == "->"_s) {
-                 consume();
-                 auto tok = peek_token();
-                 if(require(type_c<sema::id>))
-                   return build_access_member_expression(primary, sema::id(tok).name, s == "->"_s);
+  for(;;) {
+    location_t loc = peek_token().loc;
+    auto expr = visit(peek_token(), overload {
+      [&](auto &) { return tree::expression{}; },
+      [&](decltype("["_s)) -> tree::expression {
+        consume();
+        tree::expression with = expression();
+        *this <= "]"_req;
+        return build_subscript_expression({loc, peek_token().loc}, primary, with);
+      },
+      [&](decltype("("_s)) -> tree::expression {
+        consume();
+        std::vector<tree::expression> args;
+        if(peek_token() != ")"_s)
+          do args.emplace_back(assignment_expression()); while(*this <= ","_s);
+        *this <= ")"_req;
+        return build_function_call({loc, peek_token().loc}, primary, mov(args));
+      },
+      [&]<char ...c>(string_seq<c...> s) -> tree::expression requires (s == "."_s || s == "->"_s) {
+        consume();
+        auto tok = peek_token();
+        if(require(type_c<sema::id>))
+          return build_access_member_expression(primary, sema::id(tok).name, s == "->"_s);
 
-                 return {};
-               },
-               [&]<char ...c>(string_seq<c...> s) -> tree::expression requires (lex::is_crement(s)) {
-                 consume();
-                 return tree::postcrement_expression{{.op = s, .expr = primary}};
-               }
-  });
+        return {};
+      },
+      [&]<char ...c>(string_seq<c...> s) -> tree::expression requires (lex::is_crement(s)) {
+        consume();
+        return tree::postcrement_expression{{.op = s, .expr = primary}};
+      }
+    });
+    if(!expr) break;
+    primary = expr;
+  }
+  return primary;
 }
 tree::expression parser::unary_expression() {
   return visit(peek_token(), overload {
