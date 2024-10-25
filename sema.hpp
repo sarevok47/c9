@@ -133,7 +133,7 @@ struct semantics {
     auto check_type = strip_type(expr->type);
 
     if(ptr && (expr = build_unary_expression(expr->loc, "*"_s, expr)))
-      check_type = tree::pointer(expr->type)->type;
+      check_type = strip_type(expr->type);
 
     if(!check_type.is_narrow<tree::structural_decl_t>()) {
       d.diag(expr->loc, "error"_s, "cannot access member in not structural types");
