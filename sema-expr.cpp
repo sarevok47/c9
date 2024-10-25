@@ -13,7 +13,7 @@ tree::expression semantics::build_subscript_expression(source_range loc, tree::e
   return strip_type(of->type)(overload {
     [&](pointer_t &ptr) -> expression {
       dereference_t deref{.expr = ({
-        binary_expression_t binexpr{.op = "+"_s, .lhs = of, .rhs = with};
+        binary_expression_t binexpr{.op = "+"_s, .lhs = of, .rhs = build_binary_expression("*"_s, with, eval_sizeof_expression(with->loc, ptr.type)) };
         binexpr.type = ptr;
         binexpr.loc = loc;
         binexpr;
