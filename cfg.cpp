@@ -266,8 +266,12 @@ void control_flow_graph::construct(tree::statement stmt) {
       last_bb->add_insn(stmt);
     },
     [&](tree::variable_t &var) {
-      if(var.definition)
-        last_bb->add_assign(construct_expr_no_op(var.definition), construct_var(tree::variable(stmt)));
+      auto var_op = construct_var(tree::variable(stmt));
+      if(auto init = (tree::initializer_list) var.definition)
+        for(auto [offset, init] : *init)
+          last_bb->add_insn(tree::load_addr{{.src = construct(init), .dst = var_op, .offset = offset }});
+      else if(var.definition)
+        last_bb->add_assign(construct_expr_no_op(var.definition), var_op);
     },
     [&]<narrow<tree::expression_t> T>(T &) {
       construct_expr_no_op(tree::expression{tree::tree_value<T>(stmt)});

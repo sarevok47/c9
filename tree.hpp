@@ -5,6 +5,7 @@
 #include "variant.hpp"
 #include <vector>
 #include <set>
+#include <map>
 #include "diagnostics.hpp"
 #include "flat-set.hpp"
 #include "flat-map.hpp"
@@ -209,17 +210,7 @@ TREE_DEF(dereference, : lvalue_t { expression expr; });
 
 TREE_DEF(function_call, : rvalue_t { expression calee; std::vector<expression> args;  });
 
-TREE_DEF(initializer_list, : rvalue_t {
-  struct array_designator { expression index; };
-  struct struct_designator { string field_name; };
-
-  struct initializer {
-    std::vector<variant<array_designator, struct_designator>> dchain;
-    expression init;
-  };
-
-  std::vector<initializer> list;
-});
+TREE_DEF(initializer_list, : rvalue_t, std::map<size_t /*offset*/, expression> {});
 
 struct attribute {
   string name;

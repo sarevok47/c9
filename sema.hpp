@@ -123,6 +123,12 @@ struct semantics {
     return {{strip_type(type)->size, d.t.size_type_node, loc}};
   }
 
+  tree::record_member checked_access_field(source_range sr, tree::structural_decl type, string name) {
+    tree::record_member field = type->definition->find(name);
+    if(!field) d.diag(sr, "error"_s, "no matching '{}' member", name);
+    return field;
+  }
+
   tree::access_member build_access_member_expression(tree::expression expr, string name, bool ptr) {
     auto check_type = strip_type(expr->type);
 
@@ -138,14 +144,12 @@ struct semantics {
       return {};
     }
 
-    if(tree::record_member field = tree::structural_decl(check_type)->definition->find(name)) {
+    if(tree::record_member field = checked_access_field(expr->loc, tree::structural_decl(check_type), name)) {
       tree::access_member_t access{.expr = expr, .member = field};
       access.loc = expr->loc;
       access.type = field->type;
       return access;
     }
-
-    d.diag(expr->loc, "error"_s, "no matching '{}' member", name);
     return {};
   }
 

@@ -118,10 +118,10 @@ struct parser : sema::semantics, lex_spirit {
   tree::type_name declarator(sema::id &id, tree::type_name base, std::vector<tree::attribute> &attrs);
 
 
+  size_t lhs_initializer_offset(tree::type_decl &type, bool &attempted);
+  tree::initializer_list initializer_list(tree::type_decl type);
 
-  tree::initializer_list initializer_list();
-
-  tree::expression initializer();
+  tree::expression initializer(tree::type_decl type);
 
   tree::decl init_decl(decl_specifier_seq &dss, bool tail = false);
   tree::decl declaration() ;
@@ -157,7 +157,24 @@ struct parser : sema::semantics, lex_spirit {
   tree::statement statement();
 
   tree::expression bool_expression() { return build_bool_expression(expression()); }
+  opt<size_t> idx_constant_expression() {
+    opt<size_t> r;
+    auto expr = expression();
+    sv err;
+    if(auto cst = tree::tree_fold(expr, err)) {
+      if(cst->data.is<long double>())
+        error(expr->loc, "floating point cannot be used as constant index");
+      else
+        r = (__uint128_t) cst->data;
+    }
+    return r;
+  }
 
+  template<class ...T>
+  void error(source_range sr, std::format_string<T...> fmt, T&& ...args) {
+    rich_location rcl{sr.first, sr};
+    d.diag.diagnostic_impl(stderr, rcl, "error"_s, fmt, (decltype(args)) args...);
+  }
   template<class ...T>
   void error(location_t loc, std::initializer_list<location_t> locs, std::format_string<T...> fmt, T&& ...args) {
     rich_location rcl{loc, locs};

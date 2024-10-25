@@ -196,8 +196,8 @@ tree::expression parser::cast_expression() {
     consume();
     auto type = type_name();
     *this <= ")"_req;
-    if(tree::initializer_list init; *this <= "{"_s >> &parser::initializer_list % init)
-      return tree::compound_literal{{.typec = type, .init = init}};
+    if(*this <= "{"_s)
+      return tree::compound_literal{{.typec = type, .init = initializer_list(type)}};
 
     return build_cast_expression(peek_token().loc, cast_expression(), type);
   }
@@ -656,43 +656,60 @@ tree::type_name parser::declarator(sema::id &id, tree::type_name base, std::vect
 
 
 
+size_t parser::lhs_initializer_offset(tree::type_decl &type, bool &attempted) {
+  auto t = strip_type(type);
+  size_t offset{};
 
-tree::initializer_list parser::initializer_list() {
+  location_t loc = peek_token().loc;
+  if(opt<size_t> idx; *this <= "["_s && (idx = idx_constant_expression())) {
+    *this <= "]"_req;
+    if(!(tree::array) t) {
+      error({loc, peek_token().loc}, "cannot use [idx] in non array initializer list");
+      return 0;
+    }
+    type = tree::array(t)->type;
+    attempted = true;
+    offset = type->size * *idx + lhs_initializer_offset(type, attempted);
+  } else if(*this <= "."_s) {
+    if(!(tree::structural_decl) t) {
+      error({loc, peek_token().loc}, "cannot use .field in non structural initializer list");
+      return 0;
+    } else if(!peek_token().is<sema::id>()) {
+      error({loc, peek_token().loc}, "initializer field (.field) takes name");
+      return 0;
+    }
+    sema::id id = peek_token();
+    consume();
+    if(tree::record_member field = checked_access_field({loc, peek_token().loc}, tree::structural_decl(t), id.name)) {
+      type = field->type;
+      attempted = true;
+      offset = field.offset + lhs_initializer_offset(type, attempted);
+    }
+  }
+
+  return offset;
+}
+tree::initializer_list parser::initializer_list(tree::type_decl type) {
   tree::initializer_list_t init_list;
+  init_list.type = type;
 
-  for(; peek_token() && peek_token() != "}"_s; *this <= ","_s) {
-    tree::initializer_list_t::initializer init;
-    bool dchain{};
-    while(*this <= ((("["_s, [&] {
-      init.dchain.emplace_back(
-        tree::initializer_list_t::array_designator{conditional_expression()}
-      );
-    }) >> "]"_req)
-      | ("."_s, [&] {
-        auto tok = peek_token();
-        if(!require(type_c<sema::id>))
-          return false;
-        init.dchain.emplace_back(
-          tree::initializer_list_t::struct_designator{ sema::id(tok).name}
-        );
-        return true;
-      })
-    ))
-      dchain = true;
-      if(dchain) *this <= "="_s;
-      init.init = initializer();
+  size_t offset = 0;
+  for(; peek_token() && peek_token() != "}"_s; *this <= ","_s, offset += type->align) {
+    auto elt_type = type;
+    bool attempted{};
+    if(size_t offset_1 = lhs_initializer_offset(elt_type, attempted); attempted)
+      offset = offset_1, *this <= "="_req;
 
-    init_list.list.emplace_back(mov(init));
+    auto init = initializer(elt_type);
+    if(get_common_type(lex::assign_tok{"="_s}, init->loc, strip_type(elt_type), strip_type(init->type)))
+      init_list[offset] = init;
   }
   *this <= "}"_req;
   return init_list;
 }
 
-tree::expression parser::initializer() {
-  tree::expression r;
-  *this <= ("{"_s >> &parser::initializer_list % r | &parser::assignment_expression % r);
-  return r;
-
+tree::expression parser::initializer(tree::type_decl type) {
+  return *this <= "{"_s ? initializer_list(type) : assignment_expression();
 }
 
 tree::decl parser::init_decl(decl_specifier_seq &dss, bool tail) {
@@ -744,8 +761,8 @@ tree::decl parser::init_decl(decl_specifier_seq &dss, bool tail) {
         return !(*this <= ";"_s);
       }
       if(*this <= "="_s) {
-        auto init = initializer();
-        if(get_common_type(lex::assign_tok{"="_s}, init->loc, strip_type(var.type), strip_type(init->type)))
+        auto init = initializer(var.type);
+        if((tree::initializer_list) init || get_common_type(lex::assign_tok{"="_s}, init->loc, strip_type(var.type), strip_type(init->type)))
           var.definition = init;
       }
       if(!tail)
