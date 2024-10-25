@@ -674,7 +674,9 @@ size_t parser::lhs_initializer_offset(tree::type_decl &type, bool &attempted) {
     }
     type = tree::array(t)->type;
     attempted = true;
-    offset = type->size * *idx + lhs_initializer_offset(type, attempted);
+    if(size_t offset_1 = type->size * *idx + lhs_initializer_offset(type, attempted); offset_1 > type->size)
+      error({loc, peek_token().loc}, "array index is out of range");
+    else offset = offset_1;
   } else if(*this <= "."_s) {
     if(!(tree::structural_decl) t) {
       error({loc, peek_token().loc}, "cannot use .field in non structural initializer list");
