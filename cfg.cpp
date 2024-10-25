@@ -106,6 +106,8 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
       return expr;
     },
     [&](tree::access_member_t &access) {
+      if(auto deref = (tree::dereference) access.expr)
+        access.expr = deref->expr;
       access.expr = construct(access.expr);
       return expr;
     },
