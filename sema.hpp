@@ -178,6 +178,30 @@ struct semantics {
       return build_cast_expression(expr->loc, expr, tree::int_type_node);
     return expr;
   }
+  opt<size_t> build_idx_expression(tree::expression expr) {
+    opt<size_t> r;
+    sv err;
+    if(auto cst = tree::tree_fold(expr, err)) {
+      if(cst->data.is<long double>())
+        d.diag(expr->loc, "error"_s, "integral constant is missed");
+      else
+        r = (__uint128_t) cst->data;
+    } else
+      d.diag(expr->loc, "error"_s, "{}", err);
+    return r;
+  }
+  opt<size_t> try_build_idx_expression(tree::expression expr) {
+    opt<size_t> r;
+    sv err;
+    if(auto cst = tree::tree_fold(expr, err)) {
+      if(cst->data.is<long double>())
+        d.diag(expr->loc, "error"_s, "integral constant is missed");
+      else
+        r = (__uint128_t) cst->data;
+    }
+    return r;
+  }
+
 
   tree::string_cst_expression build_string(source_range loc, lex::string str);
   template<class ...T> void redecl_error(rich_location rl, string name, tree::decl &decl, std::format_string<T...> fmt, T&& ...args) {

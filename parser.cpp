@@ -636,6 +636,8 @@ tree::type_name parser::direct_declarator(sema::id &id, tree::type_name base, st
     *this <= "]"_req;
     tree::array arr{{.type = base, .numof = numof}};
     arr->ptr_type = d.t.make_ptr(base);
+    if((arr->cst_numof = try_build_idx_expression(numof)) && base->size)
+      arr->size = *arr->cst_numof * base->size;
     return tree::type_name{{arr}};
   }
   return base;

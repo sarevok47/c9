@@ -296,7 +296,7 @@ TREE_DEF(pointer, : scalar_type_t {
 
   pointer_t(type_decl type, size_t size) : type{type} { this->size = size; this->align = size; }
 });
-TREE_DEF(array, : type_decl_t { type_decl type; expression numof; pointer ptr_type; });
+TREE_DEF(array, : type_decl_t { type_decl type; expression numof; pointer ptr_type; opt<size_t> cst_numof; });
 TREE_DEF(function_type, : type_decl_t {
   std::vector<declarator> params;
   type_name return_type;
