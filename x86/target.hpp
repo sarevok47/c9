@@ -81,6 +81,13 @@ static void dump_insn(FILE *out, insn insn) {
       dump_op(out, movsx.ops[1], movsx.dst);
       fprintln(out, "");
     },
+    [&](set set) {
+      visit(set.op, [&](auto s) {
+        fprint(out, "set{} ", s.c_str());
+        dump_op(out, set.dst, "b"_s);
+        fprintln(out, "");
+      });
+    },
     [&](jmp jmp) { fprintln(out, "jmp .bb_{}", jmp.target->i); },
     [&](jcc jcc) { visit(jcc.op, [&](auto s) { fprintln(out, "j{} .bb_{}", s.c_str(), jcc.target->i); }); },
     [&](call call) { fprint(out, "call ");  dump_op(out, call.target, "l"_s); fprintln(out, ""); },

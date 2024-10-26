@@ -91,8 +91,26 @@ void function_codegen::dump(FILE *out) {
 insn make_binary_insn(lex::binary_tok binary_op, data_type type, op lhs, op rhs) {
   return visit(binary_op, overload {
     [](auto) -> insn {},
-    [&](decltype("+"_s)) -> insn { return add{type, {lhs, rhs}}; },
-    [&](decltype("-"_s)) -> insn { return sub{type, {lhs, rhs}}; },
+    [&](decltype("+"_s)) -> insn  { return add{type, {lhs, rhs}}; },
+    [&](decltype("-"_s)) -> insn  { return sub{type, {lhs, rhs}}; },
+    [&](decltype("&"_s)) -> insn  { return and_{type, {lhs, rhs}}; },
+    [&](decltype("|"_s)) -> insn  { return or_{type, {lhs, rhs}}; },
+    [&](decltype("^"_s)) -> insn  { return xor_{type, {lhs, rhs}}; },
+    [&](decltype("<<"_s)) -> insn { return sal{type, {lhs, rhs}}; },
+    [&](decltype(">>"_s)) -> insn { return sar{type, {lhs, rhs}}; },
+    [&](auto s) -> insn requires (lex::is_relational(s))  { return cmp{type, {lhs, rhs}}; }
+  });
+}
+opcode get_opcode(lex::binary_tok binary_op) {
+  c9_assert(lex::is_relational(binary_op));
+  return visit(binary_op, overload {
+    [&](auto) -> opcode {},
+    [](decltype("=="_s)) -> opcode { return "e"_s; },
+    [](decltype("!="_s)) -> opcode { return "ne"_s; },
+    [](decltype("<"_s))  -> opcode { return "l"_s; },
+    [](decltype("<="_s)) -> opcode { return "le"_s; },
+    [](decltype(">"_s))  -> opcode { return "g"_s; },
+    [](decltype(">="_s)) -> opcode { return "ge"_s; },
   });
 }
 
@@ -201,6 +219,8 @@ void function_codegen::gen(tree::expression expr, op dst) {
     [&](binary_expression_t expr) {
       auto src = gen(tree::op(expr.lhs)), dst = gen(tree::op(expr.rhs));
       *this << make_binary_insn(expr.op, get_type(expr.type), src, dst);
+      if(lex::is_relational(expr.op))
+        *this << set{get_opcode(expr.op), dst};
     }
   });
 }
