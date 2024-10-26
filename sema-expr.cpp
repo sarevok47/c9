@@ -198,16 +198,29 @@ tree::ternary_expression semantics::build_ternary_expression(tree::expression co
   ternary.rhs = build_cast_expression(rhs->loc, rhs, ternary.type);
   return ternary;
 }
-
+tree::postcrement_expression semantics::build_postcrement_expression(source_range loc, lex::crement_tok tok, tree::expression expr) {
+  return visit(tok, [&]<char l>(string_seq<l, l>) -> tree::postcrement_expression {
+    if(!(tree::lvalue) expr) {
+      d.diag(loc, "error"_s, "{}{} expression requires lvalue", l, l);
+      return {};
+    }
+    tree::postcrement_expression_t r{.op = tok, .expr = expr};
+    r.loc = loc;
+    r.type = expr->type;
+    if(get_common_type(lex::binary_tok{string_seq<l>{}}, loc, strip_type(expr->type), tree::int_type_node))
+      return r;
+    return {};
+  });
+}
 tree::expression semantics::build_unary_expression(source_range loc, lex::token op, tree::expression expr) {
   tree::expression r;
   visit(op, overload {
     [](auto &) { c9_assert(0); },
     [&](decltype("++"_s)) {
-
+      r = build_assign_expression("="_s, expr, build_binary_expression("+"_s, expr, tree::int_cst_expression{{1, tree::int_type_node, expr->loc}}));
     },
     [&](decltype("--"_s)) {
-
+      r = build_assign_expression("="_s, expr, build_binary_expression("-"_s, expr, tree::int_cst_expression{{1, tree::int_type_node, expr->loc}}));
     },
     [&](decltype("&"_s))  {
       if(!expr.is_narrow<tree::lvalue_t>()) {

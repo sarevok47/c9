@@ -202,7 +202,8 @@ public:
         std::vector<cfg::param> params(tree::function_type(fun.type)->params.size());
         cfg::control_flow_graph cfg{.d = d, .nlabel = nlabel,  .function = tree::function(decl), .params = params};
         cfg.construct(fun.definition);
-        for(auto var : cfg.vars.map<tree::variable_t>()) section_data.emplace(var);
+        for(auto var : cfg.vars.map<tree::variable_t>())
+          if(var->is_global || var->scs == "static"_s) section_data.emplace(var);
         c9::tree_opt::constprop(cfg);
         c9::tree_opt::cse(cfg);
         cfg.unssa();

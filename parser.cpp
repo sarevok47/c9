@@ -176,7 +176,7 @@ tree::expression parser::postfix_expression() {
       },
       [&]<char ...c>(string_seq<c...> s) -> tree::expression requires (lex::is_crement(s)) {
         consume();
-        return tree::postcrement_expression{{.op = s, .expr = primary}};
+        return build_postcrement_expression(loc, s, primary);
       }
     });
     if(!expr) break;

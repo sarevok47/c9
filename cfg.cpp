@@ -96,6 +96,17 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
   expr->type = tree::strip_type(expr->type);
   return expr(overload {
     [](auto &) -> tree::expression { fprint(stderr, "{}", __PRETTY_FUNCTION__); },
+    [&](tree::postcrement_expression_t &expr) {
+      return visit(expr.op, [&]<char l>(string_seq<l, l>) {
+        tree::op dst = tree::op(expr.expr = construct(expr.expr));
+        auto r = last_bb->add_assign(dst, make_tmp(dst->type));
+        tree::cst_t cst{.data = __uint128_t{1}};
+        cst.type = tree::int_type_node;
+        last_bb->add_assign(tree::binary_expression_t{.op = string_seq<l>{}, .lhs = expr, .rhs = cst},
+                            dst);
+        return r;
+      });
+    },
     [&](tree::string_cst_expression_t &) { return expr; },
     [&](tree::dereference_t &deref) {
       deref.expr = construct(deref.expr);

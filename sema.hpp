@@ -224,6 +224,7 @@ struct semantics {
     d.diag(expr->loc, "error"_s, "{}", err);
     return {};
   }
+  tree::postcrement_expression build_postcrement_expression(source_range loc, lex::crement_tok tok, tree::expression expr);
 
   tree::string_cst_expression build_string(source_range loc, lex::string str);
   template<class ...T> void redecl_error(rich_location rl, string name, tree::decl &decl, std::format_string<T...> fmt, T&& ...args) {
