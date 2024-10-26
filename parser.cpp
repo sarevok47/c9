@@ -980,6 +980,17 @@ tree::statement parser::statement() {
     switch_scopes.top().get().tree->cases.emplace_back(case_);
     return case_;
   }
+  if(*this <= keyword::default_) {
+    auto &switch_scopes = scopes.ctx_scope_get<sema::switch_scope>();
+    if(switch_scopes.empty()) {
+      error(peek_token().loc, {}, "default label without according switch");
+      return {};
+    }
+    *this <= ":"_req;
+    tree::default_statement default_{{ .stmt = statement()}};
+    switch_scopes.top().get().tree->default_ = default_;
+    return default_;
+  }
   if(*this <= keyword::break_) {
     if(!scopes.ctx_scope_get<sema::switch_scope>().empty()
       && !scopes.ctx_scope_get<sema::control_scope>().empty()

@@ -418,10 +418,12 @@ TREE_DEF(if_statement, : statement_t {
   statement else_stmt;
 });
 TREE_DEF(case_statement, : statement_t { expression cond; statement stmt; cfg::basic_block *bb{}; });
+TREE_DEF(default_statement, : statement_t { statement stmt; cfg::basic_block *bb; });
 TREE_DEF(switch_statement, : statement_t {
   expression cond;
   statement stmt;
   std::vector<case_statement> cases;
+  default_statement default_;
 });
 TREE_DEF(while_statement, : statement_t { expression cond; statement body; });
 TREE_DEF(for_statement, : statement_t {
