@@ -291,6 +291,7 @@ void control_flow_graph::construct(tree::statement stmt) {
       ret.expr = construct(ret.expr);
       last_bb->add_insn(stmt);
     },
+    [&](tree::function_t &) {},
     [&](tree::variable_t &var) {
       if(var.scs == "static"_s) return;
       auto var_op = construct_var(tree::variable(stmt));
@@ -299,6 +300,9 @@ void control_flow_graph::construct(tree::statement stmt) {
           last_bb->add_insn(tree::load_addr{{.src = construct(init), .dst = var_op, .offset = offset }});
       else if(var.definition)
         last_bb->add_assign(construct_expr_no_op(var.definition), var_op);
+    },
+    [&](tree::block_decl_t &block) {
+      for(auto decl : block) construct(decl);
     },
     [&]<narrow<tree::expression_t> T>(T &) {
       construct_expr_no_op(tree::expression{tree::tree_value<T>(stmt)});

@@ -740,34 +740,32 @@ tree::decl parser::init_decl(decl_specifier_seq &dss, bool tail) {
   dector_name.level = scopes.stack.size() - 1;
   decl = build_decl({loc}, dector_name, dector_type, dss.storage_class);
   bool block_decl_accept = decl(overload {
-    [&](tree::function_t &fun) {
-      if(dss.storage_class == "extern"_s) {
+    [&, body = false](tree::function_t &fun) mutable {
+      if(dss.storage_class == "extern"_s)
         decl = {};  // reset decl to prevent redefinition statements in cfg construction
-        return !(*this <= ";"_s);
+      else {
+        body = !tail && *this <= ("{"_s, [&] {
+          scopes.push_scope<sema::fn_scope>({(tree::function_type) fun.type});
+        tree::compound_statement_t compound;
+        while(peek_token() && peek_token() != "}"_s)
+          compound.emplace_back(block_item());
+          scopes.pop_scope();
+        *this <= "}"_req;
+        if(fun.definition)
+          error(peek_token().loc, {}, "redifinition of function '{}'", fun.name);
+        else
+          fun.definition = compound;
+        });
       }
-      bool body = !tail && *this <= ("{"_s, [&] {
-        scopes.push_scope<sema::fn_scope>({(tree::function_type) fun.type});
-      tree::compound_statement_t compound;
-      while(peek_token() && peek_token() != "}"_s)
-        compound.emplace_back(block_item());
-        scopes.pop_scope();
-      *this <= "}"_req;
-      if(fun.definition)
-        error(peek_token().loc, {}, "redifinition of function '{}'", fun.name);
-      else
-        fun.definition = compound;
-      });
 
       if(!body && !tail)
         return !(*this <= ";"_s);
       return !body && !tail;
     },
     [&](tree::variable_t &var) {
-      if(dss.storage_class == "extern"_s) {
+      if(dss.storage_class == "extern"_s)
         decl = {};  // reset decl to prevent redefinition statements in cfg construction
-        return !(*this <= ";"_s);
-      }
-      if(*this <= "="_s) {
+      else if(*this <= "="_s) {
         auto init = initializer(var.type);
 
         bool require_constant = dector_name.is_global_scope() || var.scs == "static"_s;
