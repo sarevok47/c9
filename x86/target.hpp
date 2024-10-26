@@ -183,7 +183,7 @@ constexpr static xmmreg xmm_ret_reg = xmmreg::xmm0;
 
 class codegen {
   size_t nlabel = 1;
-  std::set<tree::variable> section_data;
+  flat_set<tree::variable> section_data;
   std::vector<std::pair<opt<function_codegen>, tree::function>> section_text;
 public:
   driver &d;

@@ -305,7 +305,8 @@ void control_flow_graph::construct(tree::statement stmt) {
       for(auto decl : block) construct(decl);
     },
     [&]<narrow<tree::expression_t> T>(T &) {
-      construct_expr_no_op(tree::expression{tree::tree_value<T>(stmt)});
+      auto expr = construct_expr_no_op(tree::expression{tree::tree_value<T>(stmt)});
+      last_bb->add_assign(expr, make_tmp(expr->type));
     },
     [&](tree::compound_statement_t &stmts) { for(auto stmt : stmts) construct(stmt); },
   });

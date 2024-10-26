@@ -126,7 +126,7 @@ tree::decl semantics::build_decl(rich_location rl, id id, tree::type_name type, 
     tree::variable_t var{id.name,  type->type,
                          id.is_global_scope(),
                          scs_assign(decltype(tree::variable_t::scs){}, scs)};
-    if(var.scs == "static"_s) var.static_name = ".STATIC_"s + std::to_string(static_idx + 1);
+    if(var.scs == "static"_s) var.static_name = ".STATIC_"s + std::to_string(static_idx++);
     decl = var;
   }
   return decl;
