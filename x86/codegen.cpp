@@ -218,7 +218,7 @@ void function_codegen::gen(tree::expression expr, op dst) {
     },
     [&](binary_expression_t expr) {
       auto src = gen(tree::op(expr.lhs)), dst = gen(tree::op(expr.rhs));
-      *this << make_binary_insn(expr.op, get_type(expr.type), src, dst);
+      *this << make_binary_insn(expr.op, get_type(expr.lhs->type), src, dst);
       if(lex::is_relational(expr.op))
         *this << set{get_opcode(expr.op), dst};
     }

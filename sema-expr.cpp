@@ -65,7 +65,7 @@ tree::function_call semantics::build_function_call(source_range loc, tree::expre
                                 fun.params[i].type, args[i]->type, i);
           return {};
         }
-        args[i] = maybe_build_cast_expression(args[i]->loc, paramtype, args[i]);
+        args[i] = build_cast_expression(args[i]->loc, args[i],  paramtype);
       }
       tree::function_call_t call{.calee = calee, .args = mov(args)};
       call.loc = loc;
@@ -109,35 +109,6 @@ tree::expression semantics::build_decl_expression(location_t ref_loc, tree::decl
   return r;
 }
 
-tree::expression semantics::maybe_build_cast_expression(source_range loc, tree::type_decl to, tree::expression from) {
-  using namespace tree;
-  return visit(strip_type(to), strip_type(from->type), prioritizied_overload(
-    [&]<class T>(T &, T &) -> expression{
-      from->loc = loc;
-      return from;
-    },
-    [&](auto lhs, auto rhs) -> expression requires requires { lhs.is_scalar(); rhs.is_scalar(); }
-    || std::same_as<decltype(lhs), void_type_t> {
-      cast_expression_t cast{  .cast_from = from, .cast_to = to };
-      cast.loc = loc;
-      cast.type = to;
-      return cast;
-    },
-    [&](auto &, void_type_t) -> expression {
-      d.diag(loc, "error"_s, "void typed value appears in cast expression");
-      return {};
-    },
-    [&](union_decl_t &, auto &) -> expression {
-
-      return {};
-    },
-    [&](auto &, auto &) -> expression {
-      d.diag(loc, "error"_s, "invalid cast from '{}' to '{}'", to, from->type);
-      return {};
-    }
-  ));
-}
-
 tree::statement_expression semantics::build_statement_expression(source_range loc, tree::compound_statement stmts) {
   using namespace tree;
   type_decl type = void_type_node;
@@ -163,10 +134,6 @@ tree::type_decl semantics::get_common_type(variant<lex::binary_tok, lex::assign_
     type_decl type;
     if(!visit(op, overload {
       [&](lex::binary_tok op) {
-        if(op == "-"_s && requires { l.is_pointer(); r.is_pointer(); })
-          type = d.t.ptrdiff_type_node;
-        else if(lex::is_relational(op) || op == "||"_s || op == "&&"_s)
-          type = int_type_node;
         return type;
       },
       [&](lex::assign_tok op) {
@@ -189,6 +156,15 @@ tree::binary_expression semantics::build_binary_expression(lex::binary_tok op, t
   binexpr.loc = lhs->loc + rhs->loc;
   if(!(binexpr.type = get_common_type(op, binexpr.loc, strip_type(lhs->type), strip_type(rhs->type))))
     return {};
+  else {
+    binexpr.lhs = build_cast_expression(lhs->loc, lhs, binexpr.type);
+    binexpr.rhs = build_cast_expression(rhs->loc, rhs, binexpr.type);
+  }
+
+  if(op == "-"_s && (tree::pointer) strip_type(binexpr.type))
+    binexpr.type = d.t.ptrdiff_type_node;
+  else if(lex::is_relational(op) || op == "||"_s || op == "&&"_s)
+    binexpr.type = int_type_node;
   return binexpr;
 }
 
@@ -218,7 +194,9 @@ tree::ternary_expression semantics::build_ternary_expression(tree::expression co
   ternary.loc = cond->loc + rhs->loc;
   if(!(ternary.type = get_common_type(lex::binary_tok{"=="_s}, lhs->loc + rhs->loc, strip_type(lhs->type), strip_type(rhs->type))))
     return {};
-    return ternary;
+  ternary.lhs = build_cast_expression(lhs->loc, lhs, ternary.type);
+  ternary.rhs = build_cast_expression(rhs->loc, rhs, ternary.type);
+  return ternary;
 }
 
 tree::expression semantics::build_unary_expression(source_range loc, lex::token op, tree::expression expr) {

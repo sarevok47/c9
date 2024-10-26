@@ -116,6 +116,7 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
         [&](auto &lhs, auto &rhs) requires requires { lhs.is_integer(); rhs.is_integer(); } {
           return lhs.rank < rhs.rank;
         },
+        []<class T>(T &, T &) { return false; },
         [](auto &, auto &) { return true; }
       })) {
         cast.cast_from = construct(cast.cast_from);

@@ -155,7 +155,7 @@ template<class L, class R> bool is_compatible(lex::assign_tok op, L &lhs, R &rhs
      * by the left operand has all the qualifiers of the type pointed to by the right operand; */
     [&](decltype("="_s)) {
       return overload{
-        [](auto &, auto &) requires requires {lhs.is_arithmetic(); rhs.is_arithmetic(); } { return true; },
+        [](auto &, auto &) requires requires {lhs.is_scalar(); rhs.is_scalar(); } { return true; },
         []<narrow<structural_decl_t> T>(T &lhs, T &rhs) { return &lhs == &rhs; },
         [](pointer_t &, pointer_t &) { return true; },
         [](auto &, auto &) { return false; }
