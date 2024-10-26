@@ -417,8 +417,8 @@ TREE_DEF(if_statement, : statement_t {
   statement if_stmt;
   statement else_stmt;
 });
-TREE_DEF(case_statement, : statement_t { expression cond; statement stmt; cfg::basic_block *bb{}; });
-TREE_DEF(default_statement, : statement_t { statement stmt; cfg::basic_block *bb; });
+TREE_DEF(case_statement, : statement_t { expression cond; cfg::basic_block *bb{}; });
+TREE_DEF(default_statement, : statement_t { cfg::basic_block *bb; });
 TREE_DEF(switch_statement, : statement_t {
   expression cond;
   statement stmt;
@@ -435,10 +435,7 @@ TREE_DEF(do_while_statement, : statement_t {
   expression cond;
   statement body;
 });
-TREE_DEF(label, : decl_t {
-  string name;
-  statement stmt;
-});
+TREE_DEF(label, : decl_t { string name; });
 TREE_DEF(break_statement, : statement_t {});
 TREE_DEF(continue_statement, : statement_t {});
 TREE_DEF(goto_statement, : statement_t) { struct empty {}; variant<empty, label, expression> target; };

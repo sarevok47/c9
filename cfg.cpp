@@ -270,13 +270,9 @@ void control_flow_graph::construct(tree::statement stmt) {
       // used in unswitch()
       for(auto case_ : switch_.cases)
         cfg() >> add_bb(last_bb);
-      add_bb(last_bb);
-      for(auto case_ : switch_.cases)
-        cfg() >> add_bb(last_bb) >> case_->bb >> case_->stmt;
-      if(switch_.default_)
-        cfg() >> add_bb(last_bb) >> switch_.default_->bb >> switch_.default_->stmt
-              >> add_bb(last_bb);
-      else
+      cfg() >> add_bb(last_bb) >> switch_.stmt;
+
+      if(!switch_.default_)
         switch_.default_ = tree::default_statement{{.bb = &add_bb(last_bb)}};
 
       for(auto break_ : breaks.top()) {
@@ -286,6 +282,8 @@ void control_flow_graph::construct(tree::statement stmt) {
       }
       breaks.pop();
     },
+    [&](tree::case_statement_t &case_)       { case_.bb    = &add_bb(last_bb); },
+    [&](tree::default_statement_t &default_) { default_.bb = &add_bb(last_bb); },
     [&](tree::break_statement_t)    { breaks   .top().emplace_back(last_bb); add_bb(last_bb); },
     [&](tree::continue_statement_t) { continues.top().emplace_back(last_bb); add_bb(last_bb); },
     [&](tree::return_statement_t &ret) {

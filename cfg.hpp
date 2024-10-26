@@ -194,10 +194,7 @@ void visit_ops(auto &insn, auto &&f) {
     },
     [&](tree::switch_statement_t &switch_) {
       visit_ops(switch_.cond, f);
-      for(auto &case_ : switch_.cases) {
-        visit_ops(case_->cond, f);
-        visit_ops(case_->stmt, f);
-      }
+      for(auto &case_ : switch_.cases) visit_ops(case_->cond, f);
     },
     [&](tree::return_statement_t &ret) {
       visit_ops(ret.expr, f);

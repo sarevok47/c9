@@ -976,7 +976,7 @@ tree::statement parser::statement() {
     auto cond = build_tree_idx_expression(conditional_expression());
     *this <= ":"_req;
 
-    tree::case_statement case_{{ .cond = cond, .stmt = statement()}};
+    tree::case_statement case_{{ .cond = cond}};
     switch_scopes.top().get().tree->cases.emplace_back(case_);
     return case_;
   }
@@ -987,7 +987,7 @@ tree::statement parser::statement() {
       return {};
     }
     *this <= ":"_req;
-    tree::default_statement default_{{ .stmt = statement()}};
+    tree::default_statement default_ = tree::default_statement_t{};
     switch_scopes.top().get().tree->default_ = default_;
     return default_;
   }
@@ -1024,9 +1024,8 @@ tree::statement parser::statement() {
       location_t colon_loc = peek_token().loc;
       consume();
 
-      auto stmt = peek_token() == "}"_s ? tree::statement{} : block_item();
 
-      tree::label label{{.name = id.name, .stmt = stmt}};
+      tree::label label{{.name = id.name}};
       if(!scopes.ctx_scope_get<sema::fn_scope>()
         .top().get().labels.process_label(label)
       ) {
