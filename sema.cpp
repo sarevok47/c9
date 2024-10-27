@@ -166,7 +166,7 @@ void semantics::process_record_decl(tree::record_decl_t &rd, bool is_struct, siz
     }
   }
 
-  size = offset_i;
+  size = is_struct ? offset_i : max;
 }
 
 } }

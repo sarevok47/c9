@@ -661,62 +661,106 @@ tree::type_name parser::declarator(sema::id &id, tree::type_name base, std::vect
 
 
 
-size_t parser::lhs_initializer_offset(tree::type_decl &type, bool &attempted) {
+void parser::struct_elt(size_t base_offset, tree::record_member field, tree::structural_decl type, tree::type_decl base, tree::initializer_list_t &init_list) {
+  auto f = [&] {
+    auto f = [&](auto f, size_t base_offset, auto field, tree::structural_decl s) -> void {
+      for(; field != s->definition->fields.end(); ++field)  {
+        if(peek_token() == "}"_s || peek_token() == "."_s || peek_token() == "["_s)
+          break;
+        if(auto s = (tree::structural_decl) strip_type((*field)->type))
+          f(f, base_offset + field->offset, s->definition->fields.begin(), s);
+        else
+          initializer_elt(base_offset + field->offset, (*field)->type, base, init_list);
+        if(field + 1 == s->definition->fields.end()) break;
+        if(!(*this <= ","_s)) break;
+      }
+    };
+    auto start = type->definition->fields.begin();
+    while(field && start->get_data() != field.get_data()) ++start;
+    f(f, base_offset, start, type);
+    if(peek_token() == "."_s || peek_token() == "["_s)
+      initializer_elt(0, base, base, init_list);
+  };
+  if(*this <= "{"_s) { f(); *this <= "}"_req; } else f();
+}
+void parser::array_elt(size_t base_offset, size_t idx, tree::array type, tree::type_decl base, tree::initializer_list_t &init_list) {
+  auto f = [&] {
+    for(; idx * type->type->size < type->size; ++idx) {
+      if(peek_token() == "}"_s)
+        break;
+      if(peek_token() == "."_s || peek_token() == "["_s) {
+        initializer_elt(0, base, base, init_list);
+        break;
+      }
+      initializer_elt(base_offset + idx * type->type->size, type->type, base, init_list);
+      if((idx + 1) * type->type->size >= type->size) break;
+      if(!(*this <= ","_s)) break;
+    }
+  };
+  if(*this <= "{"_s) { f(); *this <= "}"_req; } else f();
+}
+void parser::initializer_elt(size_t base_offset, tree::type_decl type, tree::type_decl base, tree::initializer_list_t &init_list) {
   auto t = strip_type(type);
-  size_t offset{};
-
   location_t loc = peek_token().loc;
-  if(opt<__uint128_t> idx; *this <= "["_s && (idx = idx_constant_expression())) {
+  if(opt<__uint128_t> idx; *this <= "["_s >> &parser::idx_constant_expression % idx) {
     *this <= "]"_req;
     if(!(tree::array) t) {
       error({loc, peek_token().loc}, "cannot use [idx] in non array initializer list");
-      return 0;
+      return;
     }
-    type = tree::array(t)->type;
-    attempted = true;
-    if(size_t offset_1 = type->size * *idx + lhs_initializer_offset(type, attempted); offset_1 > type->size)
-      error({loc, peek_token().loc}, "array index is out of range");
-    else offset = offset_1;
+    auto type = tree::array(t)->type;
+    if(peek_token() == "."_s || peek_token() == "["_s) {
+      initializer_elt(base_offset + type->size * (*idx)++, type, base, init_list);
+      *this <= ","_s;
+    } else
+      *this <= "="_req;
+    array_elt(base_offset, *idx, tree::array(t), base, init_list);
   } else if(*this <= "."_s) {
     if(!(tree::structural_decl) t) {
       error({loc, peek_token().loc}, "cannot use .field in non structural initializer list");
-      return 0;
+      return;
     } else if(!peek_token().is<sema::id>()) {
       error({loc, peek_token().loc}, "initializer field (.field) takes name");
-      return 0;
+      return;
     }
     sema::id id = peek_token();
     consume();
     if(tree::record_member field = checked_access_field({loc, peek_token().loc}, tree::structural_decl(t), id.name)) {
       type = field->type;
-      attempted = true;
-      offset = field.offset + lhs_initializer_offset(type, attempted);
+      auto field_it = tree::structural_decl(t)->definition->fields.begin();
+      while(field_it->get_data() != field.get_data()) ++field_it;
+       if(peek_token() == "."_s || peek_token() == "["_s) {
+         initializer_elt(base_offset + field.offset, type, base, init_list);
+         *this <= ","_s;
+         ++field_it;
+       } else
+        *this <= "="_req;
+      struct_elt(base_offset, *field_it, tree::structural_decl(t), base, init_list);
+    }
+  } else {
+    if(auto arr = (tree::array) t) array_elt(base_offset, 0, arr, base, init_list);
+    else if(auto s = (tree::structural_decl) t) struct_elt(base_offset, {}, s, base, init_list);
+    else {
+      if(*this <= "{"_s) {
+        initializer_elt(base_offset, type, base, init_list);
+        *this <= "}"_req;
+      } else {
+        auto init = initializer(t);
+        if((tree::initializer_list) init || (init = build_cast_expression(init->loc, init, t)))
+          init_list[base_offset] = init;
+      }
     }
   }
-
-  return offset;
 }
 tree::initializer_list parser::initializer_list(tree::type_decl type) {
   tree::initializer_list_t init_list;
   init_list.type = type;
-
-  size_t offset = 0;
-  for(; peek_token() && peek_token() != "}"_s; *this <= ","_s, offset += type->align) {
-    auto elt_type = type;
-    bool attempted{};
-    if(size_t offset_1 = lhs_initializer_offset(elt_type, attempted); attempted)
-      offset = offset_1, *this <= "="_req;
-
-    auto init = initializer(elt_type);
-    if(init = build_cast_expression(init->loc, init, strip_type(elt_type)))
-      init_list[offset] = init;
-  }
-  *this <= "}"_req;
+  initializer_elt(0, type, type, init_list);
   return init_list;
 }
 
 tree::expression parser::initializer(tree::type_decl type) {
-  return *this <= "{"_s ? initializer_list(type) : assignment_expression();
+  return peek_token() == "{"_s ? initializer_list(type) : assignment_expression();
 }
 
 tree::decl parser::init_decl(decl_specifier_seq &dss, bool tail) {

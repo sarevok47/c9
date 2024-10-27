@@ -118,7 +118,9 @@ struct parser : sema::semantics, lex_spirit {
   tree::type_name declarator(sema::id &id, tree::type_name base, std::vector<tree::attribute> &attrs);
 
 
-  size_t lhs_initializer_offset(tree::type_decl &type, bool &attempted);
+  void struct_elt(size_t base_offset, tree::record_member field, tree::structural_decl type, tree::type_decl base, tree::initializer_list_t &init_list);
+  void array_elt(size_t base_offset, size_t idx, tree::array type, tree::type_decl base, tree::initializer_list_t &init_list);
+  void initializer_elt(size_t base_offset, tree::type_decl type, tree::type_decl base, tree::initializer_list_t &init_list);
   tree::initializer_list initializer_list(tree::type_decl type);
 
   tree::expression initializer(tree::type_decl type);

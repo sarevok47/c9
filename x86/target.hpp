@@ -258,7 +258,7 @@ public:
           for(auto [offset_1, init] : *list) {
             if(offset_1 - offset)
               fprintln(out, "\t.zero {}", offset_1 - offset);
-            offset = offset_1;
+            offset = offset_1 + init->type->size;
             print_data(out, init->type, *tree::cst(init));
           }
           fprintln(out, "\t.zero {}", var->type->size - offset);
