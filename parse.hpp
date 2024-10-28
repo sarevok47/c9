@@ -16,6 +16,7 @@ struct decl_specifier_seq {
   std::vector<tree::attribute> attrs;
 
   location_t storage_class_loc;
+  bool inline_{};
 };
 
 
@@ -106,7 +107,7 @@ struct parser : sema::semantics, lex_spirit {
   bool starts_declspec(lex::token tok) {
     return starts_typename(tok) ||
       *this <= (keyword::typedef_ | keyword::extern_ | keyword::auto_
-                 | keyword::static_ | keyword::register_);
+                 | keyword::static_ | keyword::register_ | keyword::__extension___);
   }
 
 

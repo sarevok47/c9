@@ -152,6 +152,7 @@ tree::type_decl semantics::get_common_type(variant<lex::binary_tok, lex::assign_
 
 tree::binary_expression semantics::build_binary_expression(lex::binary_tok op, tree::expression lhs, tree::expression rhs) {
   using namespace tree;
+
   binary_expression_t binexpr{ .op = op, .lhs = lhs, .rhs = rhs};
   binexpr.loc = lhs->loc + rhs->loc;
   if(!(binexpr.type = get_common_type(op, binexpr.loc, strip_type(lhs->type), strip_type(rhs->type))))

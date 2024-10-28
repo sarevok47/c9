@@ -24,6 +24,8 @@ bool parser::starts_typename(lex::token tok) {
                    case keyword::typeof_:
                    case keyword::__auto_type_:
                    case keyword::__attribute___:
+                   case keyword::struct_:
+                   case keyword::union_:
                    case keyword::register_:
                    case keyword::const_:
                    case keyword::volatile_:
@@ -507,7 +509,7 @@ bool parser::nested_attribute_list(std::vector<tree::attribute> &attr_list, tree
       if(*this <= "("_s) {
         if(peek_token() != ")"_s)
           for(;;) {
-            if((attr.name == "access" || attr.name == "__format__") && is<sema::id>(peek_token())) {
+            if((attr.name == "access" || attr.name == "__format__" || attr.name == "__mode__") && is<sema::id>(peek_token())) {
               sema::id &id = peek_token();
               attr.arguments.emplace_back(tree::identifier_token{{  .loc = peek_token().loc, .str = id.name }});
               consume();
@@ -540,6 +542,10 @@ bool parser::declspec(decl_specifier_seq &dss, bool scs_ok) {
   bool r{};
   while(type_specifier(dss.type, tss) || type_qualifer(dss.type) || attribute_list(dss.attrs)
     || [&] {
+      if(*this <= (keyword::inline_ | keyword::__inline___ | keyword::__inline_ ))
+        return dss.inline_ = true;
+      if(*this <= keyword::__extension___)
+        return true;
       location_t loc = peek_token().loc;
       storage_class_spec scs{};
       bool r = scs_ok && storage_class_specifier(scs);
@@ -788,6 +794,7 @@ tree::decl parser::init_decl(decl_specifier_seq &dss, bool tail) {
       if(dss.storage_class == "extern"_s)
         decl = {};  // reset decl to prevent redefinition statements in cfg construction
       else {
+        if(dss.inline_) fun.scs = "static"_s;
         body = !tail && *this <= ("{"_s, [&] {
           scopes.push_scope<sema::fn_scope>({(tree::function_type) fun.type});
         tree::compound_statement_t compound;

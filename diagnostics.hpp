@@ -127,8 +127,9 @@ struct source_range {
   source_range(location_t first) : first{first}, last{first + 1} { }
 
   source_range operator+(source_range rhs) const {
-    c9_assert(rhs.last >= last && rhs.first >= first);
-    return {first, rhs.last};
+    location_t arr[] = {first, last, rhs.first, rhs.last};
+    std::ranges::sort(arr);
+    return {arr[0], arr[3]};
   }
 };
 
