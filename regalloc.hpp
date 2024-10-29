@@ -42,14 +42,14 @@ class register_allocator {
   void compute_interval(cfg::basic_block *bb, tree::op def);
   void compute_intervals(auto pred) {
     for(auto def : cfg.vars.map<tree::variable_t>())
-      compute_interval(&cfg.entry, def);
+      if(pred(def->type)) compute_interval(&cfg.entry, def);
     for(cfg::basic_block *bb = &cfg.entry; bb; bb = bb->step()) {
       for(auto def : bb->def.map<tree::ssa_variable_t>())
         if(pred(def->type)) compute_interval(bb, def);
       for(auto def : bb->def.map<tree::temporary_t>())
         if(pred(def->type)) compute_interval(bb, def);
     }
-    #if 0
+  #if 0
     for(auto interval : intervals) {
       fprint(stderr, "interval: '");
       cfg::tree_dump(stderr, interval.op);
@@ -57,6 +57,7 @@ class register_allocator {
   }
   #endif
   }
+private:
   std::pair<tree::target_op, bool> *next_reg();
   void reload(live_interval li, size_t insn_pos, decltype(cfg::basic_block::insns)::iterator insn);
   void process_interval(live_interval li);
@@ -67,7 +68,7 @@ public:
   std::vector<std::pair<tree::target_op, bool>> tab;
   std::vector<std::pair<tree::target_op, bool> *> call_regs;
   std::pair<tree::target_op, bool> * ret_reg;
-  bool spill_ret{};
+  bool spill_ret{}, alloc_var = true;
   size_t spill_sofs = -1;
 
   cfg::control_flow_graph &cfg;
@@ -87,5 +88,6 @@ public:
       this->call_regs.emplace_back(&tab[size_t(reg)]);
     this->ret_reg = &tab[size_t(ret_reg)];
   }
+  template<class Reg> register_allocator(cfg::control_flow_graph &cfg, Reg reg, auto op) : cfg{cfg} {}
 };
 }}

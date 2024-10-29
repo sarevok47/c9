@@ -41,7 +41,8 @@ static void dump_op(FILE *out, op op, data_type type) {
                [&](auto) -> sv * { c9_assert(0); }
              })[idx]);
     },
-    [&](xmmreg xmmreg) { fprint(out, "%xmm{}", size_t(xmmreg)); },
+    [&](xmmreg xmmreg) { fprint(out, "%xmm{}",  size_t(xmmreg)); },
+    [&](streg streg)   { fprint(out, "%st({})", size_t(streg)); },
     [&](narrow<memop> auto op) {
       fprint(out, "{}{:+d}(", op.sym, op.offset);
       dump_op(out, op.base, "q"_s);
@@ -55,9 +56,20 @@ static void dump_op(FILE *out, op op, data_type type) {
       fprint(out, ")");
     },
     [&](int imm) { fprint(out, "${}", imm); },
-        [](auto) {}
+    [](auto) {}
   });
 }
+  /*
+   struct fldt { op src; };
+struct fstp { op dst; };
+struct fldz {};
+struct fucomip {};
+struct fchs {};
+struct faddp {};
+struct fsubrp {};
+struct fmulp {};
+struct fdivrp {};
+   */
 static void dump_insn(FILE *out, insn insn) {
   fprint(out, "\t");
   visit(insn, overload {
@@ -71,6 +83,24 @@ static void dump_insn(FILE *out, insn insn) {
       }
       fprintln(out, "");
     },
+    [&](fldt fldt) {
+      fprint(out, "fldt ");
+      dump_op(out, fldt.src, {});
+      fprintln(out, "");
+    },
+    [&](fstp fstp) {
+      fprint(out, "fstp ");
+      dump_op(out, fstp.dst, {});
+      fprintln(out, "");
+    },
+    [&](fucomip)   { fprintln(out, "fucomip"); },
+    [&](fcomip)    { fprintln(out, "fcomip"); },
+    [&](fchs)      { fprintln(out, "fchs"); },
+    [&](fldz)      { fprintln(out, "fldz"); },
+    [&](faddp)     { fprintln(out, "faddp"); },
+    [&](fsubrp)    { fprintln(out, "fsubrp"); },
+    [&](fmulp)     { fprintln(out, "fmulp"); },
+    [&](fdivrp)    { fprintln(out, "fdivrp"); },
     [&](movsx movsx) {
       fprint(out, "movs");
       dump_type(out, movsx.src);
@@ -93,7 +123,6 @@ static void dump_insn(FILE *out, insn insn) {
     [&](call call) { fprint(out, "call ");  dump_op(out, call.target, "l"_s); fprintln(out, ""); },
     [&](ret &) { fprintln(out, "ret"); },
     [](auto) {
-
     }
   });
 }
@@ -223,7 +252,14 @@ public:
       {
         regalloc::register_allocator alloc{cfg, x86::xmmreg{}, x86::op{}, x86::xmm_call_conv_sysv, x86::xmm_ret_reg};
         alloc.spill_ret = !int_;
-        alloc([](tree::type_decl type) { return (tree::floating_type) type; });
+        alloc([](tree::type_decl type) { return (tree::float_type) type || (tree::double_type) type; });
+      }
+      {
+        enum class empty { };
+        regalloc::register_allocator alloc{cfg, empty{}, x86::op{}};
+        alloc.spill_ret = false;
+        alloc.alloc_var = false;
+        alloc([](tree::type_decl type) { return (tree::long_double_type) type; });
       }
         function_codegen codegen{cfg};
         codegen.gen(cfg.entry);
@@ -321,7 +357,7 @@ struct x86_target : target {
         bool xmm_0 = has_xmmnum_0(type), xmm_1 = has_xmmnum_1(type);
         if(i + xmm_0 + xmm_1 != regnum || (!xmm && i + !xmm_0 + !xmm_1 != regnum))
           i += xmm ? xmm_0 + xmm_1 : !xmm_0 + !xmm_1;
-      } else if((!xmm || !(tree::floating_type) type))
+      } else if((!xmm || !((tree::float_type) type && (tree::double_type) type)))
         ++i;
     };
     for(auto arg : fcall->args) f(f, arg->type);

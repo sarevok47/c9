@@ -6,11 +6,12 @@ namespace cfg { struct basic_block; }
 namespace x86 {
 enum class intreg { rax, rcx, rdx, rbx, rsi, rdi, rbp, rsp, r8, r9, r10, r11, r12, r13, r14, r15, rip, num_of };
 enum class xmmreg { xmm0, xmm1, xmm2, xmm3, xmm4, xmm5, xmm6, xmm7, xmm8, xmm9, xmm10, xmm11, xmm12, xmm13, xmm14, xmm15, num_of };
+enum class streg  { st0, st1, st2, st3, st4, st5, st6, st7, num_of };
 using sym = string;
 struct memop { intreg base; int offset; string sym; };
 struct memop_index : memop { intreg index; };
 struct memop_scale : memop_index { variant_t<1_c, 2_c, 4_c, 8_c> scale; };
-using op = variant<sym, intreg, xmmreg, int, memop, memop_index, memop_scale>;
+using op = variant<sym, intreg, xmmreg, streg, int, memop, memop_index, memop_scale>;
 
 
 using data_type = variant_t<"b"_s, "w"_s, "l"_s, "q"_s, "ss"_s, "sd"_s>;
@@ -44,7 +45,18 @@ using neg =  alu_insn<1, "neg"_s>;
 using not_ = alu_insn<1, "not"_s>;
 using push = alu_insn<1, "push"_s>;
 using pop =  alu_insn<1, "pop"_s>;
+struct fldt { op src; };
+struct fstp { op dst; };
+struct fldz {};
+struct fcomip {};
+struct fucomip {};
+struct fchs {};
+struct faddp {};
+struct fsubrp {};
+struct fmulp {};
+struct fdivrp {};
 struct movsx { data_type src, dst; op ops[2]; };
 
-using insn = variant<add, sub, or_, and_, xor_, sar, sal, mov, lea, test, cmp, xor_, neg, not_, set, jmp, jcc, call, ret, push, pop, movsx>;
+using insn = variant<add, sub, or_, and_, xor_, sar, sal, mov, lea, test, cmp, xor_, neg, not_, set, jmp, jcc, call, ret, push, pop,
+                     fldt, fstp, fldz, fcomip, fucomip, faddp, fsubrp, fmulp, fdivrp, fchs, movsx>;
 }}

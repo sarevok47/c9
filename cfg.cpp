@@ -72,7 +72,7 @@ struct cfg_stream {
 
 cfg_stream control_flow_graph::cfg() { return cfg_stream{*this}; }
 tree::op control_flow_graph::construct_var(tree::variable var) {
-  if(var->is_global || var->alias || var->scs == "static"_s || !(tree::scalar_type) strip_type(var->type)) {
+  if(var->is_global || var->alias || var->scs == "static"_s || !(tree::scalar_type) strip_type(var->type) || (tree::long_double_type) strip_type(var->type)) {
     vars.insert(var);
     last_bb->use.insert(var);
     return var;
@@ -359,6 +359,7 @@ void control_flow_graph::convert_to_two_address_code() {
         mov->src(overload {
           [](auto &) {},
           [&](auto &expr) requires requires { expr.lhs; expr.rhs; } {
+            if((tree::long_double_type) strip_type(expr.lhs->type)) return;
             tree::mov pre{{.src = expr.lhs, .dst = mov->dst}};
             expr.lhs = pre->dst;
             std::swap(expr.lhs, expr.rhs);

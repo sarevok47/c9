@@ -130,7 +130,7 @@ void register_allocator::process_interval(live_interval li) {
         cfg::visit_ops(*insn, [&](auto &op) {
           if(tree::op(op) == li.op) op = reg;
         });
-      } else {
+      } else if(alloc_var) {
         c9_assert(!li.reload);
         reload(li, insn_cnt, insn);
       }
@@ -153,7 +153,7 @@ void register_allocator::next_interval(live_interval &i) {
     repeat:
   }
 
-  if(tree::variable(i.op)) {
+  if(tree::variable(i.op) || !alloc_var) {
     i.spill_pos = i.start;
     process_interval(i);
     return;

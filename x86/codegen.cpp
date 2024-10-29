@@ -41,6 +41,10 @@ void function_codegen::gen(cfg::basic_block &entry) {
       [&](narrow<tree::floating_type_t> auto &) {
         store_param(xmm, xmmreg::xmm0, p(param), get_type(type));
       },
+      [&](tree::long_double_type_t &) {
+        local_vars[param.op] = param_sp += 8;
+        param_sp += 16;
+      },
       [&](narrow<tree::pointer_t>      auto &type) { store_param(int_, intreg::rax, p(param), get_type(type)); },
       [&](narrow<tree::integer_type_t> auto &type) { store_param(int_, intreg::rax, p(param), get_type(type)); },
       [&](narrow<tree::structural_decl_t> auto &struct_) {
@@ -101,6 +105,16 @@ insn make_binary_insn(lex::binary_tok binary_op, data_type type, op lhs, op rhs)
     [&](auto s) -> insn requires (lex::is_relational(s))  { return cmp{type, {lhs, rhs}}; }
   });
 }
+insn make_st_binary_insn(lex::binary_tok binary_op) {
+  return visit(binary_op, overload {
+    [](auto) -> insn {},
+    [&](decltype("+"_s)) -> insn  { return faddp{};  },
+    [&](decltype("-"_s)) -> insn  { return fsubrp{}; },
+    [&](decltype("*"_s)) -> insn  { return fmulp{};  },
+    [&](decltype("/"_s)) -> insn  { return fdivrp{}; },
+    [&](auto s) -> insn requires (lex::is_relational(s))  { return fcomip{}; }
+  });
+}
 opcode get_opcode(lex::binary_tok binary_op) {
   c9_assert(lex::is_relational(binary_op));
   return visit(binary_op, overload {
@@ -126,7 +140,7 @@ op function_codegen::gen(tree::op operand) {
         memop{intreg::rbp, (int) pos};
       });
     },
-    [&](tree::ssa_variable_t &var) -> op {
+    [&]<class T>(T &var) -> op requires narrow<T, tree::temporary_t> || narrow<T, tree::ssa_variable_t> {
       return ({
         auto &pos = local_vars[operand];
         if(!pos) pos = sp -= var.type->size;
@@ -144,7 +158,10 @@ void function_codegen::gen(tree::expression expr, op dst) {
   expr(overload {
     [](auto &) { },
     [&](narrow<tree::op_t> auto &op) {
-      *this << mov{ get_type(op.type), {gen(tree::op(expr)), dst} };
+      if((tree::long_double_type) strip_type(op.type))
+        *this << fldt{gen(tree::op(expr))};
+      else
+        *this << mov{ get_type(op.type), {gen(tree::op(expr)), dst} };
     },
     [&](cast_expression_t &cast) {
       gen(cast.cast_from, dst);
@@ -178,12 +195,15 @@ void function_codegen::gen(tree::expression expr, op dst) {
       for(auto arg : fcall.args) {
         auto store_arg = [&](auto &pair, op op, auto type) {
           if(pair.first != pair.second)  *this << mov{type, {op, *pair.first++}};
-          else *this << mov{type, {op, memop{intreg::rbp, sp -= 8}}}, sp;
+          else *this << mov{type, {op, memop{intreg::rbp, sp -= 8}}};
         };
         strip_type(arg->type)(overload {
           [](auto &) {},
              [&](narrow<tree::floating_type_t> auto &) {
                store_arg(xmm, gen(tree::op(arg)), get_type(arg->type));
+             },
+             [&](tree::long_double_type_t &) {
+               *this << fldt{gen(tree::op(arg))} << fstp{memop{intreg::rbp, sp -= 16}};
              },
              [&](narrow<tree::pointer_t>      auto &type) { store_arg(int_, gen(tree::op(arg)), get_type(arg->type)); },
              [&](narrow<tree::integer_type_t> auto &type) { store_arg(int_, gen(tree::op(arg)), get_type(arg->type)); },
@@ -204,7 +224,7 @@ void function_codegen::gen(tree::expression expr, op dst) {
                   for(size_t i{}; i <= struct_.size; op.offset += 8, i += 8) {
                     auto type = struct_.size - i < 8 ? get_int_type(struct_.size - i) : data_type("q"_s);
                     *this << mov{type, {op, intreg::rax}};
-                    *this << mov{type, {intreg::rax, memop{intreg::rbp, sp}}}, sp -= 8;
+                    *this << mov{type, {intreg::rax, memop{intreg::rbp, sp -= 8}}};
                   }
              }
         });
@@ -218,9 +238,12 @@ void function_codegen::gen(tree::expression expr, op dst) {
     },
     [&](binary_expression_t expr) {
       auto src = gen(tree::op(expr.lhs)), dst = gen(tree::op(expr.rhs));
-      *this << make_binary_insn(expr.op, get_type(expr.lhs->type), src, dst);
-      if(lex::is_relational(expr.op))
-        *this << set{get_opcode(expr.op), dst};
+      if((tree::long_double_type) strip_type(expr.lhs->type)) {
+        *this << fldt{src} << fldt{dst} << make_st_binary_insn(expr.op);
+        if(lex::is_relational(expr.op))  *this << fstp{streg::st0};
+      } else {
+        *this << make_binary_insn(expr.op, get_type(expr.lhs->type), src, dst);
+      }
     }
   });
 }
@@ -243,10 +266,15 @@ void function_codegen::gen(tree::statement stmt) {
     else *this << mov{get_type(insn.op->type), {src, dst}};
   };
   stmt(overload {
-    [](auto &) {},
+    [](auto &) {  },
     [&](mov_t mov) {
       auto dst = gen(mov.dst);
       gen(mov.src, dst);
+      if((tree::long_double_type) strip_type(mov.dst->type))
+        *this << fstp{dst} ;
+      else if(auto binexpr = (tree::binary_expression) mov.src)
+        if(lex::is_relational(binexpr->op) && (tree::long_double_type) strip_type(binexpr->lhs->type))
+          *this << set{get_opcode(binexpr->op), dst};
     },
     [&](compound_statement_t &compound) {
       for(auto stmt : compound) gen(stmt);
