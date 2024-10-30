@@ -544,8 +544,6 @@ bool parser::declspec(decl_specifier_seq &dss, bool scs_ok) {
     || [&] {
       if(*this <= (keyword::inline_ | keyword::__inline___ | keyword::__inline_ ))
         return dss.inline_ = true;
-      if(*this <= keyword::__extension___)
-        return true;
       location_t loc = peek_token().loc;
       storage_class_spec scs{};
       bool r = scs_ok && storage_class_specifier(scs);

@@ -269,16 +269,24 @@ public:
   }
 
 
-  void print_data(FILE *out, tree::type_decl type, tree::cst_t cst) {
-    visit(cst.data, overload {
-      [&](__uint128_t num) { fprintln(out, "\t{} {}", get_alloc_type(get_type(type)), num); },
-      [&](long double num) {
-        uint8_t bytes[sizeof(long double)];
-        std::memcpy(bytes, &num, sizeof(long double));
-        for(uint8_t byte : bytes)
-          fprintln(out, "\t.byte {}", byte);
-      }
-    });
+  void print_data(FILE *out, tree::type_decl type, tree::expression expr) {
+    if(auto addr = (tree::addressof) expr)
+      tree::decl_expression(addr->expr)->declref(overload {
+        [](auto &) {},
+        [&](auto &sym) requires requires { sym.sym_name(); } {
+          fprintln(out, "\t.quad {}", sym.sym_name());
+        }
+      });
+    else
+      visit(tree::cst(expr)->data, overload {
+        [&](__uint128_t num) { fprintln(out, "\t{} {}", get_alloc_type(get_type(type)), num); },
+        [&](long double num) {
+          uint8_t bytes[sizeof(long double)];
+          std::memcpy(bytes, &num, sizeof(long double));
+          for(uint8_t byte : bytes)
+            fprintln(out, "\t.byte {}", byte);
+        }
+      });
   }
 
   void print(FILE *out) {
@@ -295,11 +303,11 @@ public:
             if(offset_1 - offset)
               fprintln(out, "\t.zero {}", offset_1 - offset);
             offset = offset_1 + init->type->size;
-            print_data(out, init->type, *tree::cst(init));
+            print_data(out, init->type, init);
           }
           fprintln(out, "\t.zero {}", var->type->size - offset);
         } else
-          print_data(out, var->type, *tree::cst(var->definition));
+          print_data(out, var->type, var->definition);
       }
     }
 

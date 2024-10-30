@@ -103,9 +103,8 @@ size_t insn_pos{};
 
   void dump(FILE *out);
 
-  void search_def_for_phi(tree::variable var, flat_set<tree::op> &out, basic_block *stop);
-  void place_phi(tree::ssa_variable);
-
+  void place_phi(tree::ssa_variable ssa);
+  void search_def_for_phi(tree::variable var, flat_set<tree::op> &out, basic_block *stop) ;
   void visit_dominators(auto &&f) {
     for(auto bb = this; bb = bb->dominator; )
       f(*bb);
@@ -204,7 +203,7 @@ void visit_ops(auto &insn, auto &&f) {
       visit_ops(mov.dst, f);
     },
     [&](tree::compound_statement_t &compound) { for(auto &stmt : compound) visit_ops(stmt, f); },
-    [&](tree::br_t &br) { visit_ops(br.cond, f); },
+    [&](tree::br_t &br) { visit_ops(br.cond,  f); },
     [](auto &) {}
   ));
 }

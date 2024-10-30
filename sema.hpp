@@ -175,11 +175,11 @@ struct semantics {
   }
 
   tree::expression build_bool_expression(tree::expression expr) {
-    if(!(tree::scalar_type) expr->type) {
+    if(!(tree::scalar_type) strip_type(expr->type)) {
       d.diag(expr->loc, "error"_s, "expression is not scalar");
       return {};
     }
-    if((tree::floating_type) expr->type)
+    if((tree::floating_type) strip_type(expr->type))
       return build_cast_expression(expr->loc, expr, tree::int_type_node);
     return expr;
   }
@@ -217,9 +217,14 @@ struct semantics {
     }
     return r;
   }
-  tree::cst build_constant_expression(tree::expression expr) {
+  tree::expression build_constant_expression(tree::expression expr) {
     sv err;
-    if(auto cst = tree::tree_fold(expr, err))
+    if(auto addressof = (tree::addressof) expr) {
+      if(auto declexpr = (tree::decl_expression) addressof->expr)
+        if(auto var = (tree::variable) declexpr->declref; var && !var->is_global && var->scs != "static"_s)
+          d.diag(expr->loc, "error"_s, "reference to local variable '{}' is not a constant expression", var->name);
+      return expr;
+    } else if(auto cst = tree::tree_fold(expr, err))
       return cst;
     d.diag(expr->loc, "error"_s, "{}", err);
     return {};

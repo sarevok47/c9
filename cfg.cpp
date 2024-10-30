@@ -48,7 +48,7 @@ tree::op basic_block::add_assign(tree::expression insn, tree::op dst) {
 }
 void basic_block::add_pred(basic_block *bb) {
   preds.emplace(bb);
-  for(auto phi : phis)
+  for(auto phi: phis)
     bb->search_def_for_phi(phi.key, phi.value.first->elts, bb);
 
 }
@@ -160,6 +160,21 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
       return dst;
     },
     [&](tree::binary_expression_t &b) -> tree::expression {
+      if(b.op == "&&"_s || b.op == "||"_s) {
+        basic_block *pre_if, *rhs;
+
+        auto r = make_tmp(b.type);
+        last_bb->add_assign(construct_expr_no_op(b.lhs), r);
+        cfg() >> pre_if >> add_bb(last_bb) >> rhs;
+        if(b.op == "&&"_s) b.op = "&"_s; else b.op = "|"_s;
+        b.lhs = r;
+        b.rhs = construct(b.rhs);
+
+        last_bb->add_assign(expr, r);
+        cfg() >> add_bb(pre_if, last_bb)
+              >> pre_if->br    (r,  *rhs, *last_bb);
+        return r;
+      }
       b.lhs = construct(b.lhs);
       b.rhs = construct(b.rhs);
       return expr;
@@ -167,6 +182,22 @@ tree::expression control_flow_graph::construct_expr_no_op(tree::expression expr)
     [&](tree::unary_expression_t &u) -> tree::expression {
       u.expr = construct(u.expr);
       return expr;
+    },
+    [&](tree::ternary_expression_t &ternary) -> tree::expression {
+      basic_block *pre_if, *if_start, *if_end, *else_start;
+      tree::op cond;
+      auto r = make_tmp(ternary.type);
+      cfg() << ternary.cond >> cond
+            >> pre_if
+            >> add_bb(pre_if) >> if_start;
+      if_start->add_assign(construct_expr_no_op(ternary.lhs), r);
+      cfg() >> if_end >> add_bb(pre_if) >> else_start;
+      else_start->add_assign(construct_expr_no_op(ternary.rhs), r);
+      cfg() >> add_bb(if_end, last_bb)
+            >> if_start->jump(*last_bb)
+            >> pre_if->br    (cond,  *if_start, *else_start);
+      if_start->dominator = else_start->dominator = last_bb->dominator = pre_if;
+      return r;
     },
     [&](tree::statement_expression_t &stmt_expr) -> tree::expression {
       for(auto stmt : *stmt_expr.stmts | iter_range) {

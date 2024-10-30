@@ -94,9 +94,10 @@ void function_codegen::dump(FILE *out) {
 
 insn make_binary_insn(lex::binary_tok binary_op, data_type type, op lhs, op rhs) {
   return visit(binary_op, overload {
-    [](auto) -> insn {},
+    [&](auto) -> insn { c9_assert(0); },
     [&](decltype("+"_s)) -> insn  { return add{type, {lhs, rhs}}; },
     [&](decltype("-"_s)) -> insn  { return sub{type, {lhs, rhs}}; },
+    [&](decltype("*"_s)) -> insn  { return mul{type, {lhs, rhs}}; },
     [&](decltype("&"_s)) -> insn  { return and_{type, {lhs, rhs}}; },
     [&](decltype("|"_s)) -> insn  { return or_{type, {lhs, rhs}}; },
     [&](decltype("^"_s)) -> insn  { return xor_{type, {lhs, rhs}}; },
@@ -171,8 +172,10 @@ void function_codegen::gen(tree::expression expr, op dst) {
       *this << mov{get_type(deref.type), { memop{gen(tree::op(deref.expr)), 0}, dst}};
     },
     [&](access_member_t &access) {
-      if(access.addr) *this << lea{get_type(access.member->type), { memop{ gen(tree::op(access.expr)), (int) access.member.offset}, dst }};
-      else            *this << mov{get_type(access.member->type), { memop{ gen(tree::op(access.expr)), (int) access.member.offset}, dst }};
+      auto src = (memop) gen(tree::op(access.expr));
+      src.offset += access.member.offset;
+      if(access.addr) *this << lea{"q"_s, { src, dst }};
+      else            *this << mov{get_type(access.member->type), { src, dst }};
     },
     [&](addressof_t &addr) {
       *this << lea{get_type(addr.type), { gen(tree::op(addr.expr)), dst }};
@@ -183,6 +186,12 @@ void function_codegen::gen(tree::expression expr, op dst) {
       visit(expr.op, overload {
         [&](decltype("~"_s)) {
           *this << not_{get_type(expr.type), {dst}};
+        },
+        [&](decltype("-"_s)) {
+          *this << neg{get_type(expr.type), {dst}};
+        },
+        [&](decltype("!"_s)) {
+          *this << cmp{get_type(expr.type), {dst, 0}};
         },
         [](auto &) {
 
@@ -272,9 +281,11 @@ void function_codegen::gen(tree::statement stmt) {
       gen(mov.src, dst);
       if((tree::long_double_type) strip_type(mov.dst->type))
         *this << fstp{dst} ;
-      else if(auto binexpr = (tree::binary_expression) mov.src)
+      else if(auto binexpr = (tree::binary_expression) mov.src) {
         if(lex::is_relational(binexpr->op) && (tree::long_double_type) strip_type(binexpr->lhs->type))
           *this << set{get_opcode(binexpr->op), dst};
+      } else if(auto unaryexpr = (tree::unary_expression) mov.src)
+        if(unaryexpr->op == "!"_s) *this << set{"e"_s, {dst}};
     },
     [&](compound_statement_t &compound) {
       for(auto stmt : compound) gen(stmt);

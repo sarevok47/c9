@@ -187,7 +187,7 @@ tree::assign_expression semantics::build_assign_expression(lex::assign_tok op, t
 }
 
 tree::ternary_expression semantics::build_ternary_expression(tree::expression cond, tree::expression lhs, tree::expression rhs) {
-  if(!cond->type.is_narrow<tree::scalar_type_t>()) {
+  if(!(tree::scalar_type) strip_type(cond->type)) {
     d.diag(cond->loc + rhs->loc, "error"_s, "operand type eof ternary expression '{}' is not a scalar type", cond->type);
     return {};
   }
@@ -282,19 +282,19 @@ tree::expression semantics::build_unary_expression(source_range loc, lex::token 
       unary.loc = loc;
 
       if(s == "+"_s || s == "-"_s) {
-        if(!expr->type.is_narrow<tree::arithmetic_type_t>()) {
+        if(!(tree::arithmetic_type) strip_type(expr->type)) {
           d.diag(loc, "error"_s, "operand of unary '{}' must be arithmetic type (type: '{}')", s.c_str(), expr->type);
           return;
         }
         unary.type = expr->type = promote(expr->type);
       } else if(s == "~"_s) {
-        if(!expr->type.is_narrow<tree::integer_type_t>()) {
+        if(!(tree::integer_type) strip_type(expr->type)) {
           d.diag(loc, "error"_s, "operand of unary '{}' must be integer type (type: '{}')", s.c_str(), expr->type);
           return;
         }
         unary.type = expr->type = promote(expr->type);
       } else if(s == "!"_s) {
-        if(!expr->type.is_narrow<tree::scalar_type_t>()) {
+        if(!(tree::scalar_type) strip_type(expr->type)) {
           d.diag(loc, "error"_s, "operand of unary '{}' must be scalar type (type: '{}')", s.c_str(), expr->type);
           return;
         }

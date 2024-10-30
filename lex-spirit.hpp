@@ -33,9 +33,11 @@ private:
 
       if(auto p = std::ranges::find(kws, s, &std::pair<sv, lex::keyword>::first);
          p != std::end(kws)
-      )
+      ) {
          tok = p->second;
-      else
+         if(tok == keyword::__extension___)
+           return get_token();
+      } else
         tok = lookup(tok);
     }
 
