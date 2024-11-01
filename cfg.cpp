@@ -407,7 +407,7 @@ void control_flow_graph::unswitch() {
       if(auto switch_ = (tree::switch_statement) *insn) {
         auto bbp = bb.step();
         for(auto case_ : switch_->cases) {
-          tree::binary_expression_t binexpr{.op = "-"_s, .lhs = switch_->cond, .rhs = case_->cond};
+          tree::binary_expression_t binexpr{.op = "=="_s, .lhs = switch_->cond, .rhs = case_->cond};
           binexpr.type = tree::int_type_node;
           auto tmp = bbp->add_assign(binexpr, make_tmp(tree::int_type_node));
           bbp->br(tmp, *case_->bb, *bbp->step());

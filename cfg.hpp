@@ -136,7 +136,7 @@ struct param { tree::op op; tree::target_op reg; };
 class control_flow_graph {public:
   driver &d;
   size_t &nlabel, ntmp{}, nssa{};size_t insn_count{};
-  basic_block entry{*this}, *last_bb = &entry;
+  basic_block entry{*this, ++nlabel}, *last_bb = &entry;
   tree::op last_op;
 
   defusechain vars;
@@ -152,7 +152,7 @@ class control_flow_graph {public:
   }
 
   basic_block &add_bb(auto ...preds) {
-    last_bb = &last_bb->push({*this, nlabel++, insn_count, preds...});
+    last_bb = &last_bb->push({*this, ++nlabel, insn_count, preds...});
     ((preds->succs.emplace(last_bb)), ...);
 
     if constexpr(sizeof...(preds) == 1)

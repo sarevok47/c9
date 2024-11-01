@@ -243,7 +243,7 @@ void function_codegen::gen(tree::expression expr, op dst) {
       *this << mov{"q"_s, {intreg::rax, dst}};
     },
     [&](string_cst_expression_t &cst) {
-      *this << mov{"q"_s, {cst.sym, dst}};
+      *this << lea{"q"_s, {memop{intreg::rip, 0, cst.sym} , dst}};
     },
     [&](binary_expression_t expr) {
       auto src = gen(tree::op(expr.lhs)), dst = gen(tree::op(expr.rhs));

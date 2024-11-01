@@ -32,7 +32,7 @@ struct ret {};
 using add =  alu_insn<2, "add"_s>;
 using sub =  alu_insn<2, "sub"_s>;
 using or_ =  alu_insn<2, "or"_s>;
-using mul =  alu_insn<2, "mul"_s>;
+using mul =  alu_insn<2, "imul"_s>;
 using and_ = alu_insn<2, "and"_s>;
 using xor_ = alu_insn<2, "xor"_s>;
 using sar  = alu_insn<2, "sar"_s>;

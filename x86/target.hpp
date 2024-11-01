@@ -291,7 +291,7 @@ public:
 
   void print(FILE *out) {
     fprintln(out, ".section .data");
-    for(auto var : section_data) if(var->is_global) fprintln(out, ".global {}", var->name);
+    for(auto var : section_data)  if(var->is_global) fprintln(out, ".global {}", var->name);
     for(auto var : section_data) {
       fprintln(out, "{}:", var->sym_name());
       if(!var->definition)
@@ -323,7 +323,7 @@ public:
     for(auto &[codegen, fun] : section_text)
       if(codegen) {
         fprintln(out, "{}:", fun->name);
-        codegen->dump(stderr);
+        codegen->dump(out);
       }
   }
 
